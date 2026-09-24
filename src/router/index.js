@@ -16,6 +16,10 @@ const routes = [
   {
     path: '/mycamp',
     component: () => import('../views/MycampPage.vue')
+  },
+  {
+    path: '/myprofile',
+    component: () => import('../views/MyprofilePage.vue')
   }
 ]
 

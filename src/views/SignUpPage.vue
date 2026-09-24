@@ -166,10 +166,10 @@
 
                 <!-- Footer -->
                 <div class="text-center">
-                    <p class="text-blue-500 text-sm">
+                    <p class="text-black text-sm">
                         Already have an account?
                         <router-link to="/signin"
-                            class="text-blue-500 hover:text-gray-700 transition-colors font-medium underline">
+                            class="text-black hover:text-gray-700 transition-colors font-medium underline">
                             Sign in
                         </router-link>
                     </p>

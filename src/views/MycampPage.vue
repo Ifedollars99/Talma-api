@@ -2,16 +2,16 @@
     <div class="study-social-root min-h-screen bg-[#F7F5F0]">
         <!-- Desktop Header -->
         <header class="bg-[#1C2B39] shadow-sm border-b border-[#0F1822] sticky top-0 z-50">
-            <div class="px-6 lg:px-12">
-                <div class="flex justify-between items-center py-5">
-                    <div class="flex items-center space-x-4">
+            <div class="px-4 lg:px-12">
+                <div class="flex justify-between items-center py-3 lg:py-5">
+                    <div class="flex items-center space-x-3 lg:space-x-4">
                         <div
-                            class="w-12 h-12 bg-[#C6862E] rounded-xl flex items-center justify-center">
-                            <i class="bi bi-mortarboard-fill text-[#1C2B39] text-xl"></i>
+                            class="w-10 h-10 lg:w-12 lg:h-12 bg-[#C6862E] rounded-xl flex items-center justify-center">
+                            <i class="bi bi-mortarboard-fill text-[#1C2B39] text-lg lg:text-xl"></i>
                         </div>
                         <div>
-                            <h1 class="font-heading text-2xl font-semibold text-white tracking-tight">Study Social</h1>
-                            <p class="text-sm text-white/55">
+                            <h1 class="font-heading text-lg lg:text-2xl font-semibold text-white tracking-tight">Study Social</h1>
+                            <p class="hidden sm:block text-sm text-white/55">
     {{ userRole === 'student' ? 'You signed up as a Student' : 'You signed up as a Lecturer' }}
 </p>
                         </div>
@@ -30,29 +30,17 @@
                             </button>
                         </div>
 
-                        <!-- SignOut -->
-                        <div>
-                            <button @click="handleSignOut"
-                                class="px-4 py-2 border border-white/20 rounded-lg text-white/80 hover:bg-white/10 hover:text-white text-sm font-medium transition-colors">
-                                Sign out
-                            </button>
-                        </div>
-
-                        <!-- Profile -->
-                        <div
-                            class="w-10 h-10 bg-[#C6862E] rounded-full flex items-center justify-center">
-                            <span class="text-[#1C2B39] text-base font-semibold">{{ username ? username.charAt(0).toUpperCase() : 'S' }}</span>
-                        </div>
+                     <MyprofilePage :username="username" :role="userRole" :email="currentUser?.email || ''" />
                     </div>
                 </div>
             </div>
         </header>
 
         <!-- Main Content -->
-        <div class="px-6 lg:px-12 py-8">
+        <div class="px-4 lg:px-12 py-4 lg:py-8 pb-24 lg:pb-8">
             <div class="flex flex-col lg:flex-row gap-8">
-                <!-- Sidebar Navigation - Fixed for desktop -->
-                <aside class="w-full lg:w-72 lg:flex-shrink-0">
+                <!-- Sidebar Navigation - Desktop only, mobile uses bottom nav -->
+                <aside class="hidden lg:block lg:w-72 lg:flex-shrink-0">
                     <nav class="bg-white rounded-xl border border-[#E4E0D8] p-3 lg:sticky lg:top-28">
                         <ul class="space-y-1">
                             <li>
@@ -371,18 +359,56 @@
                 </div>
             </div>
         </div>
+
+        <!-- Mobile Bottom Nav - X / Twitter style : Home, Courses, Messages, Tests, Assignments -->
+        <nav class="fixed bottom-0 inset-x-0 z-50 lg:hidden bg-white/95 backdrop-blur-md border-t border-[#E4E0D8] pb-[env(safe-area-inset-bottom)]">
+            <div class="grid grid-cols-5 h-[62px]">
+                <button @click="activeTab = 'dashboard'"
+                    :class="['flex flex-col items-center justify-center gap-0.5 transition-colors', activeTab === 'dashboard' ? 'text-[#1C2B39]' : 'text-[#8B95A0]']">
+                    <i :class="['text-[22px] leading-none', activeTab === 'dashboard' ? 'bi bi-house-door-fill' : 'bi bi-house-door']"></i>
+                    <span class="text-[10px] font-medium">Home</span>
+                </button>
+                <button @click="activeTab = 'courses'"
+                    :class="['flex flex-col items-center justify-center gap-0.5 transition-colors', activeTab === 'courses' ? 'text-[#1C2B39]' : 'text-[#8B95A0]']">
+                    <i :class="['text-[22px] leading-none', activeTab === 'courses' ? 'bi bi-book-fill' : 'bi bi-book']"></i>
+                    <span class="text-[10px] font-medium">Courses</span>
+                </button>
+                <button @click="activeTab = 'messages'"
+                    :class="['relative flex flex-col items-center justify-center gap-0.5 transition-colors', activeTab === 'messages' ? 'text-[#1C2B39]' : 'text-[#8B95A0]']">
+                    <span class="relative">
+                        <i :class="['text-[22px] leading-none', activeTab === 'messages' ? 'bi bi-chat-dots-fill' : 'bi bi-chat-dots']"></i>
+                        <span v-if="unreadMessages > 0"
+                            class="absolute -top-1.5 -right-2 bg-[#C6862E] text-[#1C2B39] text-[10px] min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center font-bold">
+                            {{ unreadMessages }}
+                        </span>
+                    </span>
+                    <span class="text-[10px] font-medium">Messages</span>
+                </button>
+                <button @click="activeTab = 'content'"
+                    :class="['flex flex-col items-center justify-center gap-0.5 transition-colors', activeTab === 'content' ? 'text-[#1C2B39]' : 'text-[#8B95A0]']">
+                    <i :class="['text-[22px] leading-none', activeTab === 'content' ? 'bi bi-file-earmark-text-fill' : 'bi bi-file-earmark-text']"></i>
+                    <span class="text-[10px] font-medium">Tests</span>
+                </button>
+                <button @click="activeTab = 'assignments'"
+                    :class="['flex flex-col items-center justify-center gap-0.5 transition-colors', activeTab === 'assignments' ? 'text-[#1C2B39]' : 'text-[#8B95A0]']">
+                    <i :class="['text-[22px] leading-none', activeTab === 'assignments' ? 'bi bi-clipboard-check-fill' : 'bi bi-clipboard-check']"></i>
+                    <span class="text-[10px] font-medium">Tasks</span>
+                </button>
+            </div>
+        </nav>
     </div>
 </template>
 
 <script setup>
-import { useRouter } from 'vue-router'
 import DashPage from '@/components/DashPage.vue'
 import MyCoursesPage from '@/components/MycoursesPage.vue'
+import MyprofilePage from './MyprofilePage.vue'
 import { ref, computed, onMounted, watch } from 'vue'
 import { supabase } from '../supabase'
 
+
 const activeTab = ref('dashboard')
-const router = useRouter()
+
 const userRole = ref('student')
 const notifications = ref(3)
 const currentUser = ref(null)
@@ -690,16 +716,6 @@ const resetTest = () => {
 
 /* ===================== End Test feature ===================== */
 
-const handleSignOut = async () => {
-  const { error } = await supabase.auth.signOut()
-  
-  if (error) {
-    console.error('Sign out error:', error.message)
-  } else {
-    console.log('✅ Signed out successfully')
-    router.push('/')  // Redirect to home page
-  }
-}
 
 // Event handlers for DashPage
 const handleCreatePost = (postData) => {

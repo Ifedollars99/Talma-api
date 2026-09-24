@@ -1,6 +1,155 @@
 <template>
-    <!-- Welcome Section - More Spacious & Premium -->
-    <div class="relative overflow-hidden bg-gradient-to-br from-[#1C2B39] via-[#1C2B39] to-[#2A3F54] rounded-2xl p-12 text-white shadow-lg">
+    <!-- ============ MOBILE X / TWITTER HOME (mobile only) ============ -->
+    <div class="lg:hidden -mx-4 -mt-4">
+        <!-- Sticky For You / Following / Discover tabs -->
+        <div class="sticky top-[64px] z-30 bg-white/95 backdrop-blur-md border-b border-[#E4E0D8]">
+            <div class="grid grid-cols-3">
+                <button @click="homeFeedTab = 'foryou'"
+                    class="relative py-3.5 text-[15px] transition-colors"
+                    :class="homeFeedTab === 'foryou' ? 'font-bold text-[#1C2B39]' : 'font-medium text-[#8B95A0]'">
+                    <span>For You</span>
+                    <span v-if="homeFeedTab === 'foryou'"
+                        class="absolute bottom-0 left-1/2 -translate-x-1/2 w-14 h-1 bg-[#C6862E] rounded-full"></span>
+                </button>
+                <button @click="homeFeedTab = 'following'"
+                    class="relative py-3.5 text-[15px] transition-colors"
+                    :class="homeFeedTab === 'following' ? 'font-bold text-[#1C2B39]' : 'font-medium text-[#8B95A0]'">
+                    <span>Following</span>
+                    <span v-if="homeFeedTab === 'following'"
+                        class="absolute bottom-0 left-1/2 -translate-x-1/2 w-14 h-1 bg-[#C6862E] rounded-full"></span>
+                </button>
+                <button @click="homeFeedTab = 'discover'"
+                    class="relative py-3.5 text-[15px] transition-colors"
+                    :class="homeFeedTab === 'discover' ? 'font-bold text-[#1C2B39]' : 'font-medium text-[#8B95A0]'">
+                    <span>Discover</span>
+                    <span v-if="homeFeedTab === 'discover'"
+                        class="absolute bottom-0 left-1/2 -translate-x-1/2 w-14 h-1 bg-[#C6862E] rounded-full"></span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Mobile composer (X style) -->
+        <div v-if="homeFeedTab !== 'discover'" class="bg-white border-b border-[#E4E0D8] px-4 py-3 flex space-x-3">
+            <div class="w-10 h-10 bg-gradient-to-br from-[#C6862E] to-[#B37726] rounded-full flex items-center justify-center flex-shrink-0">
+                <span class="text-white text-sm font-semibold">{{ username.charAt(0).toUpperCase() }}</span>
+            </div>
+            <button @click="showCreatePost = true"
+                class="flex-1 text-left text-[15px] text-[#8B95A0] pt-2">
+                Share something educational...
+            </button>
+            <button @click="showCreatePost = true"
+                class="self-center w-9 h-9 rounded-full bg-[#FBF3E4] text-[#C6862E] flex items-center justify-center">
+                <i class="bi bi-image"></i>
+            </button>
+        </div>
+
+        <!-- Mobile create-post sheet -->
+        <div v-if="showCreatePost" class="bg-white border-b border-[#E4E0D8] p-4 space-y-3">
+            <textarea v-model="newPost.content"
+                placeholder="Share educational content, tips, resources, or questions..."
+                class="w-full p-3 border border-[#E4E0D8] rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-[#C6862E] text-[15px] text-[#1C2B39]"
+                rows="3"></textarea>
+            <select v-model="newPost.subject"
+                class="w-full px-3 py-2.5 border border-[#E4E0D8] rounded-xl text-sm text-[#1C2B39] focus:outline-none focus:ring-2 focus:ring-[#C6862E]">
+                <option value="">Select a subject...</option>
+                <option v-for="course in courses" :key="course.id" :value="course.title">{{ course.title }}</option>
+            </select>
+            <div v-if="newPost.mediaUrl" class="rounded-xl overflow-hidden border border-[#E4E0D8]">
+                <img v-if="newPost.mediaType === 'image'" :src="newPost.mediaUrl" class="w-full max-h-56 object-cover">
+                <video v-else-if="newPost.mediaType === 'video'" :src="newPost.mediaUrl" class="w-full max-h-56 object-cover" controls></video>
+            </div>
+            <div class="flex items-center justify-between">
+                <label for="fileUploadMobile" class="w-10 h-10 rounded-full bg-[#FBF3E4] text-[#C6862E] flex items-center justify-center cursor-pointer">
+                    <i class="bi bi-image"></i>
+                </label>
+                <input type="file" @change="handleFileUpload" accept="image/*,video/*" class="hidden" id="fileUploadMobile">
+                <div class="flex space-x-2">
+                    <button @click="showCreatePost = false" class="px-4 py-2 text-sm text-[#5B6672] font-medium">Cancel</button>
+                    <button @click="createPost" :disabled="!newPost.content.trim()"
+                        class="px-5 py-2 bg-[#1C2B39] text-white rounded-full text-sm font-semibold disabled:opacity-40">Post</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- DISCOVER tab: Active Courses + Community -->
+        <div v-if="homeFeedTab === 'discover'" class="bg-[#F7F5F0]">
+            <div class="bg-white px-4 pt-4 pb-2 border-b border-[#E4E0D8]">
+                <h3 class="font-semibold text-[17px] text-[#1C2B39] mb-3">Active Courses</h3>
+                <div class="flex gap-3 overflow-x-auto pb-3 -mx-4 px-4 snap-x">
+                    <div v-for="course in courses" :key="course.id"
+                        class="min-w-[220px] snap-start bg-[#F7F5F0] border border-[#E4E0D8] rounded-2xl p-4">
+                        <div class="w-10 h-10 bg-[#FBF3E4] rounded-xl flex items-center justify-center mb-3">
+                            <i class="bi bi-book text-lg text-[#C6862E]"></i>
+                        </div>
+                        <p class="font-semibold text-[15px] text-[#1C2B39] leading-snug">{{ course.title }}</p>
+                        <p class="text-xs text-[#8B95A0] mt-1">{{ course.students }} students</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3 py-3">
+                    <div class="bg-[#E9F2EF]/60 border border-[#D4E8E1] rounded-2xl p-3">
+                        <p class="text-[11px] font-semibold text-[#8B95A0] uppercase">Messages</p>
+                        <p class="text-2xl font-bold text-[#1C2B39]">{{ messages.length }}</p>
+                        <p class="text-[11px] text-[#2F6F5E]">unread chats</p>
+                    </div>
+                    <div class="bg-[#FBF3E4]/60 border border-[#E4E0D8] rounded-2xl p-3">
+                        <p class="text-[11px] font-semibold text-[#8B95A0] uppercase">Community</p>
+                        <p class="text-2xl font-bold text-[#1C2B39]">{{ posts.length }}</p>
+                        <p class="text-[11px] text-[#C6862E]">posts in feed</p>
+                    </div>
+                </div>
+            </div>
+            <p class="px-4 py-2 text-xs font-semibold text-[#8B95A0] uppercase tracking-wide">Community posts</p>
+        </div>
+
+        <!-- MOBILE FEED: X-style rows -->
+        <div class="bg-white divide-y divide-[#E4E0D8] border-b border-[#E4E0D8]">
+            <div v-if="filteredMobilePosts.length === 0" class="p-10 text-center">
+                <p class="text-[#8B95A0]">No posts yet. Be the first to share!</p>
+            </div>
+            <article v-for="post in filteredMobilePosts" :key="post.id" class="px-4 py-3 flex space-x-3 active:bg-[#FAFAF8]">
+                <div class="w-10 h-10 bg-[#EFEAE0] rounded-full flex items-center justify-center flex-shrink-0 border border-[#E4E0D8]">
+                    <span class="text-[#1C2B39] text-sm font-semibold">{{ post.author.charAt(0).toUpperCase() }}</span>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-1.5 text-[15px] min-w-0">
+                        <span class="font-bold text-[#1C2B39] truncate">{{ post.author }}</span>
+                        <span v-if="post.authorRole === 'lecturer'" class="text-[11px] px-1.5 py-0.5 bg-[#FBF3E4] text-[#C6862E] rounded-full font-semibold flex-shrink-0">Lecturer</span>
+                        <span class="text-[#8B95A0] text-[13px] flex-shrink-0">· {{ formatTimeAgo(post.timestamp) }}</span>
+                        <button v-if="post.author === username" @click="deletePost(post.id)" class="ml-auto text-[#8B95A0] p-1">
+                            <i class="bi bi-trash text-sm"></i>
+                        </button>
+                    </div>
+                    <p v-if="post.subject" class="text-[13px] text-[#C6862E] font-medium">{{ post.subject }}</p>
+                    <p class="text-[15px] text-[#1C2B39] leading-normal mt-0.5">{{ post.content }}</p>
+                    <div v-if="post.mediaType === 'image'" class="mt-2 rounded-2xl overflow-hidden border border-[#E4E0D8]">
+                        <img :src="post.mediaUrl" class="w-full max-h-72 object-cover">
+                    </div>
+                    <div v-else-if="post.mediaType === 'video'" class="mt-2 rounded-2xl overflow-hidden border border-[#E4E0D8]">
+                        <video :src="post.mediaUrl" class="w-full max-h-72 object-cover" controls></video>
+                    </div>
+                    <div class="flex items-center justify-between mt-2 -ml-2 max-w-[300px]">
+                        <button @click="likePost(post.id)" class="flex items-center gap-1 text-[#8B95A0] p-2">
+                            <i class="bi bi-heart text-[17px]"></i><span class="text-[13px]">{{ post.likes }}</span>
+                        </button>
+                        <button class="flex items-center gap-1 text-[#8B95A0] p-2">
+                            <i class="bi bi-chat text-[17px]"></i><span class="text-[13px]">{{ post.comments }}</span>
+                        </button>
+                        <button class="text-[#8B95A0] p-2"><i class="bi bi-share text-[17px]"></i></button>
+                        <button class="text-[#8B95A0] p-2"><i class="bi bi-bookmark text-[17px]"></i></button>
+                    </div>
+                </div>
+            </article>
+        </div>
+
+        <!-- Mobile FAB (compose) -->
+        <button @click="showCreatePost = !showCreatePost"
+            class="fixed bottom-[78px] right-4 z-40 w-14 h-14 bg-[#C6862E] rounded-full shadow-xl flex items-center justify-center text-[#1C2B39]">
+            <i class="bi bi-plus-lg text-2xl"></i>
+        </button>
+    </div>
+
+    <!-- Welcome Section - More Spacious & Premium (DESKTOP ONLY) -->
+    <div class="hidden lg:block relative overflow-hidden bg-gradient-to-br from-[#1C2B39] via-[#1C2B39] to-[#2A3F54] rounded-2xl p-12 text-white shadow-lg">
         <div class="absolute -top-40 -right-40 w-80 h-80 bg-[#C6862E]/5 rounded-full blur-3xl"></div>
         <div class="absolute -bottom-20 -left-20 w-60 h-60 bg-[#2F6F5E]/5 rounded-full blur-3xl"></div>
         
@@ -14,8 +163,8 @@
         </div>
     </div>
 
-    <!-- Expanded Quick Stats - Premium Grid with More Visual Presence -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <!-- Expanded Quick Stats - Premium Grid (DESKTOP ONLY) -->
+    <div class="hidden lg:grid grid-cols-1 lg:grid-cols-3 gap-8">
         <!-- Active Courses Stat -->
         <div class="group relative bg-white rounded-2xl overflow-hidden border border-[#E4E0D8] shadow-sm hover:shadow-xl transition-all duration-500">
             <div class="absolute inset-0 bg-gradient-to-br from-[#FBF3E4]/30 via-transparent to-transparent"></div>
@@ -117,8 +266,8 @@
         </div>
     </div>
 
-    <!-- Create Post Section - Refined -->
-    <div class="bg-white rounded-2xl border border-[#E4E0D8] overflow-hidden shadow-sm">
+    <!-- Create Post Section - Refined (DESKTOP ONLY) -->
+    <div class="hidden lg:block bg-white rounded-2xl border border-[#E4E0D8] overflow-hidden shadow-sm">
         <div class="p-8 bg-gradient-to-r from-white via-[#FBF3E4]/20 to-white">
             <div class="flex items-center space-x-4 mb-6">
                 <div class="w-14 h-14 bg-gradient-to-br from-[#C6862E] to-[#B37726] rounded-full flex items-center justify-center flex-shrink-0 shadow-md">
@@ -191,8 +340,8 @@
         </div>
     </div>
 
-    <!-- Educational Posts Feed - Premium Treatment -->
-    <div class="bg-white rounded-2xl border border-[#E4E0D8] overflow-hidden shadow-sm">
+    <!-- Educational Posts Feed - Premium Treatment (DESKTOP ONLY) -->
+    <div class="hidden lg:block bg-white rounded-2xl border border-[#E4E0D8] overflow-hidden shadow-sm">
         <div class="px-8 py-8 border-b border-[#E4E0D8] bg-gradient-to-r from-white via-[#EFEAE0]/10 to-white">
             <h2 class="font-heading text-3xl font-semibold text-[#1C2B39]">Educational Community</h2>
             <p class="text-[#8B95A0] mt-2">Connect, learn, and share knowledge with your peers</p>
@@ -307,10 +456,10 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 // Define props to receive data from parent component
-defineProps({
+const props = defineProps({
     courses: {
         type: Array,
         default: () => []
@@ -342,12 +491,22 @@ const emit = defineEmits(['create-post', 'like-post', 'upload-file', 'delete-pos
 
 const pendingAssignments = ref(4)
 const showCreatePost = ref(false)
+const homeFeedTab = ref('foryou')
 const newPost = ref({
     content: '',
     subject: '',
     mediaType: 'none',
     mediaFile: null,
     mediaUrl: ''
+})
+
+// Mobile X-style filtering: For You = all, Following = lecturers, Discover = all (courses shown above)
+const filteredMobilePosts = computed(() => {
+    if (homeFeedTab.value === 'following') {
+        const lecturers = props.posts.filter(p => p.authorRole === 'lecturer')
+        return lecturers.length ? lecturers : props.posts
+    }
+    return props.posts
 })
 
 // Local functions

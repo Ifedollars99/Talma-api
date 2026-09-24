@@ -157,6 +157,73 @@
       </article>
     </section>
 
+    <!-- AI Study Assistant -->
+    <section id="assistant" class="assistant">
+      <div class="section__head">
+        <h2>Ask Study Assistant</h2>
+        <p>AI-powered help with notes, navigation &amp; study tips</p>
+      </div>
+
+      <div class="assistant__card">
+        <div class="assistant__header">
+          <span class="assistant__dot"></span>
+          <div>
+            <strong>Study Assistant</strong>
+            <p>{{ apiKey ? 'AI online' : 'Demo mode — add API key for AI' }}</p>
+          </div>
+          <button class="assistant__key-btn" @click="showKeyInput = !showKeyInput" type="button">
+            <i class="bi bi-key"></i> {{ showKeyInput ? 'Hide' : 'API key' }}
+          </button>
+        </div>
+
+        <div v-if="showKeyInput" class="assistant__keybox">
+          <input
+            v-model="apiKey"
+            type="password"
+            placeholder="Paste OpenAI API key (sk-...) — stored only in your browser"
+            @change="saveKey"
+          />
+          <small>Or set <code>VUE_APP_OPENAI_API_KEY</code> in a <code>.env</code> file. Without a key, the bot uses built-in answers.</small>
+        </div>
+
+        <div ref="messagesRef" class="assistant__messages">
+          <div
+            v-for="(m, i) in messages"
+            :key="i"
+            class="msg"
+            :class="m.role === 'user' ? 'msg--user' : 'msg--bot'"
+          >
+            <p>{{ m.text }}</p>
+          </div>
+          <div v-if="isTyping" class="msg msg--bot msg--typing">
+            <span></span><span></span><span></span>
+          </div>
+        </div>
+
+        <div class="assistant__chips">
+          <button
+            v-for="q in quickPrompts"
+            :key="q"
+            type="button"
+            @click="askQuick(q)"
+          >
+            {{ q }}
+          </button>
+        </div>
+
+        <form class="assistant__form" @submit.prevent="sendMessage">
+          <input
+            v-model="input"
+            placeholder="Ask about notes, lecturers, signup..."
+            :disabled="isTyping"
+          />
+          <button type="submit" :disabled="!input.trim() || isTyping" aria-label="Send message">
+            <i class="bi bi-send"></i>
+          </button>
+        </form>
+      </div>
+    </section>
+
     <!-- Contact -->
     <section id="contact" class="contact">
       <h2>Get in touch</h2>
@@ -227,7 +294,96 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+
+/* ---------- AI Study Assistant (embedded, AI-powered w/ offline fallback) ---------- */
+const SYSTEM_PROMPT = `You are the Study Assistant for "Study Social", a social learning feed where students trade notes, ask questions mid-lecture, and get lecturer slides.
+Help with: (1) Navigation — Get started -> /signup, How it works -> #how, Campus moments is a photo carousel, For students/lecturers -> #users, Contact/WhatsApp -> #contact.
+(2) App FAQs — how to share notes, ask & answer, lecturer uploads (slides/readings/past papers), like & save.
+(3) Study helper — study tips, exam prep guidance, motivation.
+Keep answers short (under 90 words), friendly, student-focused. If asked something unrelated, gently steer back to studying or app help.`
+
+const messages = ref([
+  { role: 'assistant', text: "Hi! I'm the Study Assistant. Ask me how Study Social works, where to find things, or for a study tip to get going." },
+])
+const input = ref('')
+const isTyping = ref(false)
+const apiKey = ref('')
+const showKeyInput = ref(false)
+const messagesRef = ref(null)
+const quickPrompts = [
+  'How do I get started?',
+  'How do I share notes?',
+  'Where are lecturer slides?',
+  'Give me a study tip',
+]
+
+onMounted(() => {
+  const stored = localStorage.getItem('study-assistant-key')
+  const envKey = process.env.VUE_APP_OPENAI_API_KEY
+  if (stored) apiKey.value = stored
+  else if (envKey) apiKey.value = envKey
+})
+function saveKey() {
+  localStorage.setItem('study-assistant-key', apiKey.value.trim())
+}
+function scrollChat() {
+  nextTick(() => {
+    if (messagesRef.value) messagesRef.value.scrollTop = messagesRef.value.scrollHeight
+  })
+}
+function askQuick(q) {
+  input.value = q
+  sendMessage()
+}
+async function sendMessage() {
+  const text = input.value.trim()
+  if (!text || isTyping.value) return
+  messages.value.push({ role: 'user', text })
+  input.value = ''
+  scrollChat()
+  isTyping.value = true
+  try {
+    const reply = apiKey.value.trim() ? await callAI() : localFallback(text)
+    messages.value.push({ role: 'assistant', text: reply })
+  } catch (e) {
+    messages.value.push({ role: 'assistant', text: 'Sorry, the AI service failed. ' + localFallback(text) })
+  } finally {
+    isTyping.value = false
+    scrollChat()
+  }
+}
+async function callAI() {
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + apiKey.value.trim(),
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        ...messages.value.slice(-10).map((m) => ({ role: m.role, content: m.text })),
+      ],
+      temperature: 0.7,
+      max_tokens: 300,
+    }),
+  })
+  if (!res.ok) throw new Error('AI request failed: ' + res.status)
+  const data = await res.json()
+  return data.choices?.[0]?.message?.content?.trim() || "Hmm, I didn't get that — try again."
+}
+function localFallback(text) {
+  const t = text.toLowerCase()
+  if (/start|sign ?up|register|join|account/.test(t)) return 'To get started, hit "Get started" up top or go to /signup to create an account. Then head to #how to see how the feed works.'
+  if (/note|share|post|upload/.test(t)) return 'To share notes: open your class feed, post your notes, and classmates can reply, like and save them. The best notes become the class default.'
+  if (/slide|lecturer|reading|past paper|material/.test(t)) return "Lecturer slides, readings and past papers live in the same class feed — check #users for the lecturer view, or ask here and lecturers reply directly."
+  if (/where|navigate|find|how it works|contact|whatsapp/.test(t)) return 'Quick tour: How it works -> #how, Campus life -> campus moments carousel, Students & lecturers -> #users, Contact via WhatsApp -> #contact, Signup -> /signup.'
+  if (/tip|study|exam|motivat|focus|prepare/.test(t)) return 'Study tip: use 25-min focused sprints (Pomodoro), then quiz yourself from your notes instead of re-reading. Post your summary to the feed — teaching it locks it in.'
+  if (/hello|hi|hey/.test(t)) return 'Hello! Ask me how to use Study Social, where anything lives on this page, or for a study tip.'
+  return 'Great question! In demo mode I cover app help, navigation (#how, #users, #contact, /signup) and study tips. Add an OpenAI API key above for full AI answers.'
+}
 
 /* ---------- Hero crossfade carousel ---------- */
 const heroImages = [
@@ -826,6 +982,161 @@ h1, h2, h3 {
   border-radius: 4px;
   text-align: center;
   font-size: 0.9rem;
+}
+
+/* ---------- AI Assistant ---------- */
+.assistant {
+  padding: 5rem 1.5rem;
+  max-width: 760px;
+  margin: 0 auto;
+}
+.assistant__card {
+  background: var(--paper-warm);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.assistant__header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: var(--ink);
+  color: var(--paper);
+}
+.assistant__header strong {
+  font-family: 'Fraunces', serif;
+  font-size: 1.05rem;
+}
+.assistant__header p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.65);
+}
+.assistant__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #4ade80;
+  flex-shrink: 0;
+}
+.assistant__key-btn {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: var(--paper);
+  border-radius: 4px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.assistant__keybox {
+  padding: 0.9rem 1.25rem;
+  border-bottom: 1px solid var(--rule);
+}
+.assistant__keybox input {
+  width: 100%;
+  padding: 0.65rem 0.8rem;
+  border: 1.5px solid var(--ink);
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+.assistant__keybox small {
+  display: block;
+  margin-top: 0.4rem;
+  color: var(--ink-soft);
+}
+.assistant__messages {
+  height: 320px;
+  overflow-y: auto;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+.msg {
+  max-width: 85%;
+  padding: 0.7rem 0.95rem;
+  border-radius: 12px;
+  font-size: 0.93rem;
+  line-height: 1.5;
+}
+.msg p {
+  margin: 0;
+}
+.msg--bot {
+  align-self: flex-start;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-bottom-left-radius: 3px;
+}
+.msg--user {
+  align-self: flex-end;
+  background: var(--ink);
+  color: var(--paper);
+  border-bottom-right-radius: 3px;
+}
+.msg--typing {
+  display: flex;
+  gap: 5px;
+  padding: 1rem;
+}
+.msg--typing span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-soft);
+  animation: blink 1.2s infinite;
+}
+.msg--typing span:nth-child(2) { animation-delay: 0.2s; }
+.msg--typing span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes blink {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+.assistant__chips {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0 1.25rem 0.75rem;
+}
+.assistant__chips button {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 20px;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+.assistant__chips button:hover {
+  border-color: var(--ink);
+}
+.assistant__form {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0 1.25rem 1.25rem;
+}
+.assistant__form input {
+  flex: 1;
+  padding: 0.8rem 1rem;
+  border: 1.5px solid var(--ink);
+  border-radius: 4px;
+  font-size: 0.95rem;
+  font-family: 'Inter', sans-serif;
+}
+.assistant__form button {
+  width: 48px;
+  border-radius: 4px;
+  border: none;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+.assistant__form button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* ---------- Responsive ---------- */
