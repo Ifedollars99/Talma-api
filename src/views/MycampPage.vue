@@ -101,42 +101,9 @@
                         <MyCoursesPage :courses="courses" :userRole="userRole" @course-added="handleCourseAdded" />
                     </div>
 
-                    <!-- Messages -->
-                    <div v-if="activeTab === 'messages'" class="space-y-6">
-                        <div class="flex justify-between items-center mb-2">
-                            <h2 class="font-heading text-3xl font-semibold text-[#1C2B39]">Messages</h2>
-                            <button
-                                class="bg-[#C6862E] text-[#1C2B39] px-5 py-2.5 rounded-lg flex items-center space-x-2 hover:bg-[#B37726] hover:text-white transition-colors font-medium">
-                                <i class="bi bi-plus-circle text-lg"></i>
-                                <span class="text-base">New Message</span>
-                            </button>
-                        </div>
-
-                        <div class="bg-white rounded-xl border border-[#E4E0D8]">
-                            <div v-for="(message, index) in messages" :key="message.id"
-                                :class="['p-5 hover:bg-[#F7F5F0] cursor-pointer transition-colors', index !== messages.length - 1 ? 'border-b border-[#E4E0D8]' : '']">
-                                <div class="flex items-start space-x-4">
-                                    <div class="w-12 h-12 bg-[#EFEAE0] rounded-full flex items-center justify-center flex-shrink-0">
-                                        <i class="bi bi-person text-[#1C2B39] text-lg"></i>
-                                    </div>
-                                    <div class="flex-1 min-w-0">
-                                        <div class="flex items-center justify-between mb-1">
-                                            <h4
-                                                :class="['text-base', message.unread ? 'font-semibold text-[#1C2B39]' : 'font-medium text-[#5B6672]']">
-                                                {{ message.sender }}
-                                            </h4>
-                                            <span class="text-sm text-[#8B95A0]">{{ message.time }}</span>
-                                        </div>
-                                        <h5
-                                            :class="['text-base mb-1', message.unread ? 'font-medium text-[#1C2B39]' : 'text-[#5B6672]']">
-                                            {{ message.subject }}
-                                        </h5>
-                                        <p class="text-base text-[#8B95A0] truncate">{{ message.preview }}</p>
-                                    </div>
-                                    <div v-if="message.unread" class="w-2.5 h-2.5 bg-[#C6862E] rounded-full mt-2 flex-shrink-0"></div>
-                                </div>
-                            </div>
-                        </div>
+                    <!-- Messages & Communities -->
+                    <div v-if="activeTab === 'messages'">
+                        <MessageCom :messages="messages" @open-message="handleOpenMessage" />
                     </div>
 
                     <!-- Test (formerly Content) -->
@@ -402,6 +369,7 @@
 <script setup>
 import DashPage from '@/components/DashPage.vue'
 import MyCoursesPage from '@/components/MycoursesPage.vue'
+import MessageCom from '@/components/MessageCom.vue'
 import MyprofilePage from './MyprofilePage.vue'
 import { ref, computed, onMounted, watch } from 'vue'
 import { supabase } from '../supabase'
@@ -766,6 +734,12 @@ const cancelDelete = () => {
 // Course added handler
 const handleCourseAdded = (newCourse) => {
     courses.value.unshift(newCourse)
+}
+
+// Message opened handler — mark as read
+const handleOpenMessage = (messageId) => {
+    const message = messages.value.find(m => m.id === messageId)
+    if (message) message.unread = false
 }
 
 // submit assignment

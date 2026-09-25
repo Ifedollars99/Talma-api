@@ -1,6 +1,19 @@
 <template>
     <!-- ============ MOBILE X / TWITTER HOME (mobile only) ============ -->
     <div class="lg:hidden -mx-4 -mt-4">
+        <!-- Mobile Welcome (same as desktop, compact) — before tabs -->
+        <div class="mx-4 mt-4 mb-3 relative overflow-hidden bg-gradient-to-br from-[#1C2B39] via-[#1C2B39] to-[#2A3F54] rounded-2xl p-6 text-white shadow-lg">
+            <div class="absolute -top-20 -right-20 w-40 h-40 bg-[#C6862E]/10 rounded-full blur-3xl"></div>
+            <div class="relative z-10">
+                <p class="text-[#C6862E] text-xs font-medium tracking-wide mb-1 uppercase">Welcome back</p>
+                <h1 class="font-heading text-3xl font-semibold mb-2">{{ username }}</h1>
+                <p class="text-sm text-white/70 leading-relaxed">
+                    You have <span class="text-[#C6862E] font-medium">{{ notifications }} new notifications</span> and
+                    <span class="text-[#7FC8A9] font-medium">{{ pendingTasks }} pending tasks</span> waiting for you.
+                </p>
+            </div>
+        </div>
+
         <!-- Sticky For You / Following / Discover tabs -->
         <div class="sticky top-[64px] z-30 bg-white/95 backdrop-blur-md border-b border-[#E4E0D8]">
             <div class="grid grid-cols-3">
@@ -71,34 +84,10 @@
             </div>
         </div>
 
-        <!-- DISCOVER tab: Active Courses + Community -->
+        <!-- DISCOVER tab: search + hubs (mobile) — content lives in views/HubsPage.vue -->
         <div v-if="homeFeedTab === 'discover'" class="bg-[#F7F5F0]">
-            <div class="bg-white px-4 pt-4 pb-2 border-b border-[#E4E0D8]">
-                <h3 class="font-semibold text-[17px] text-[#1C2B39] mb-3">Active Courses</h3>
-                <div class="flex gap-3 overflow-x-auto pb-3 -mx-4 px-4 snap-x">
-                    <div v-for="course in courses" :key="course.id"
-                        class="min-w-[220px] snap-start bg-[#F7F5F0] border border-[#E4E0D8] rounded-2xl p-4">
-                        <div class="w-10 h-10 bg-[#FBF3E4] rounded-xl flex items-center justify-center mb-3">
-                            <i class="bi bi-book text-lg text-[#C6862E]"></i>
-                        </div>
-                        <p class="font-semibold text-[15px] text-[#1C2B39] leading-snug">{{ course.title }}</p>
-                        <p class="text-xs text-[#8B95A0] mt-1">{{ course.students }} students</p>
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 gap-3 py-3">
-                    <div class="bg-[#E9F2EF]/60 border border-[#D4E8E1] rounded-2xl p-3">
-                        <p class="text-[11px] font-semibold text-[#8B95A0] uppercase">Messages</p>
-                        <p class="text-2xl font-bold text-[#1C2B39]">{{ messages.length }}</p>
-                        <p class="text-[11px] text-[#2F6F5E]">unread chats</p>
-                    </div>
-                    <div class="bg-[#FBF3E4]/60 border border-[#E4E0D8] rounded-2xl p-3">
-                        <p class="text-[11px] font-semibold text-[#8B95A0] uppercase">Community</p>
-                        <p class="text-2xl font-bold text-[#1C2B39]">{{ posts.length }}</p>
-                        <p class="text-[11px] text-[#C6862E]">posts in feed</p>
-                    </div>
-                </div>
-            </div>
-            <p class="px-4 py-2 text-xs font-semibold text-[#8B95A0] uppercase tracking-wide">Community posts</p>
+            <HubsPage v-model="discoverSearch" variant="mobile" />
+            <p class="px-4 py-2 text-xs font-semibold text-[#8B95A0] uppercase tracking-wide">Community posts{{ discoverSearch ? ` matching "${discoverSearch}"` : '' }}</p>
         </div>
 
         <!-- MOBILE FEED: X-style rows -->
@@ -157,14 +146,41 @@
             <p class="text-[#C6862E] text-sm font-medium tracking-wide mb-2 uppercase">Welcome back</p>
             <h1 class="font-heading text-5xl font-semibold mb-4">{{ username }}</h1>
             <p class="text-lg text-white/70 max-w-2xl leading-relaxed">
-                You have <span class="text-[#C6862E] font-medium">{{ notifications }} new notifications</span> and 
-                <span class="text-[#2F6F5E] font-medium">{{ pendingAssignments }} pending assignments</span> waiting for your attention.
+                You have <span class="text-[#C6862E] font-medium">{{ notifications }} new notifications</span> and
+                <span class="text-[#2F6F5E] font-medium">{{ pendingTasks }} pending tasks</span> waiting for your attention.
             </p>
         </div>
     </div>
 
-    <!-- Expanded Quick Stats - Premium Grid (DESKTOP ONLY) -->
-    <div class="hidden lg:grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <!-- Desktop For You / Following / Discover tabs — after Welcome, above stats (DESKTOP ONLY) -->
+    <div class="hidden lg:block bg-white rounded-2xl border border-[#E4E0D8] shadow-sm overflow-hidden">
+        <div class="grid grid-cols-3 max-w-2xl mx-auto">
+            <button @click="homeFeedTab = 'foryou'"
+                class="relative py-4 text-[15px] transition-colors"
+                :class="homeFeedTab === 'foryou' ? 'font-bold text-[#1C2B39]' : 'font-medium text-[#8B95A0] hover:text-[#5B6672]'">
+                <span>For You</span>
+                <span v-if="homeFeedTab === 'foryou'"
+                    class="absolute bottom-0 left-1/2 -translate-x-1/2 w-14 h-1 bg-[#C6862E] rounded-full"></span>
+            </button>
+            <button @click="homeFeedTab = 'following'"
+                class="relative py-4 text-[15px] transition-colors"
+                :class="homeFeedTab === 'following' ? 'font-bold text-[#1C2B39]' : 'font-medium text-[#8B95A0] hover:text-[#5B6672]'">
+                <span>Following</span>
+                <span v-if="homeFeedTab === 'following'"
+                    class="absolute bottom-0 left-1/2 -translate-x-1/2 w-14 h-1 bg-[#C6862E] rounded-full"></span>
+            </button>
+            <button @click="homeFeedTab = 'discover'"
+                class="relative py-4 text-[15px] transition-colors"
+                :class="homeFeedTab === 'discover' ? 'font-bold text-[#1C2B39]' : 'font-medium text-[#8B95A0] hover:text-[#5B6672]'">
+                <span>Discover</span>
+                <span v-if="homeFeedTab === 'discover'"
+                    class="absolute bottom-0 left-1/2 -translate-x-1/2 w-14 h-1 bg-[#C6862E] rounded-full"></span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Expanded Quick Stats - Premium Grid (DESKTOP ONLY, hidden on Discover) -->
+    <div v-if="homeFeedTab !== 'discover'" class="hidden lg:grid grid-cols-1 lg:grid-cols-3 gap-8">
         <!-- Active Courses Stat -->
         <div class="group relative bg-white rounded-2xl overflow-hidden border border-[#E4E0D8] shadow-sm hover:shadow-xl transition-all duration-500">
             <div class="absolute inset-0 bg-gradient-to-br from-[#FBF3E4]/30 via-transparent to-transparent"></div>
@@ -266,8 +282,8 @@
         </div>
     </div>
 
-    <!-- Create Post Section - Refined (DESKTOP ONLY) -->
-    <div class="hidden lg:block bg-white rounded-2xl border border-[#E4E0D8] overflow-hidden shadow-sm">
+    <!-- Create Post Section - Refined (DESKTOP ONLY, hidden on Discover to match mobile) -->
+    <div v-if="homeFeedTab !== 'discover'" class="hidden lg:block bg-white rounded-2xl border border-[#E4E0D8] overflow-hidden shadow-sm">
         <div class="p-8 bg-gradient-to-r from-white via-[#FBF3E4]/20 to-white">
             <div class="flex items-center space-x-4 mb-6">
                 <div class="w-14 h-14 bg-gradient-to-br from-[#C6862E] to-[#B37726] rounded-full flex items-center justify-center flex-shrink-0 shadow-md">
@@ -346,16 +362,20 @@
             <h2 class="font-heading text-3xl font-semibold text-[#1C2B39]">Educational Community</h2>
             <p class="text-[#8B95A0] mt-2">Connect, learn, and share knowledge with your peers</p>
         </div>
+
+        <!-- DISCOVER tab panel (desktop): content lives in views/HubsPage.vue -->
+        <HubsPage v-if="homeFeedTab === 'discover'" v-model="discoverSearch" variant="desktop" />
+        <p v-if="homeFeedTab === 'discover'" class="px-8 pt-5 text-xs font-semibold text-[#8B95A0] uppercase tracking-wide border-t border-[#E4E0D8]">Community posts{{ discoverSearch ? ` matching "${discoverSearch}"` : '' }}</p>
         
         <div class="divide-y divide-[#E4E0D8]">
-            <div v-if="posts.length === 0" class="p-12 text-center">
+            <div v-if="filteredPosts.length === 0" class="p-12 text-center">
                 <div class="w-16 h-16 bg-[#FBF3E4] rounded-full flex items-center justify-center mx-auto mb-4">
                     <i class="bi bi-chat-dots text-2xl text-[#C6862E]"></i>
                 </div>
                 <p class="text-[#8B95A0] text-lg">No posts yet. Be the first to share something!</p>
             </div>
 
-            <div v-for="post in posts" :key="post.id" class="p-8 hover:bg-[#FAFAF8] transition-colors duration-300">
+            <div v-for="post in filteredPosts" :key="post.id" class="p-8 hover:bg-[#FAFAF8] transition-colors duration-300">
                 <!-- Post Header -->
                 <div class="flex items-start space-x-4 mb-6">
                     <div class="w-14 h-14 bg-gradient-to-br from-[#EFEAE0] to-[#E4D9CC] rounded-full flex items-center justify-center flex-shrink-0 shadow-sm border border-[#E4E0D8]">
@@ -457,6 +477,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import HubsPage from '@/views/HubsPage.vue'
 
 // Define props to receive data from parent component
 const props = defineProps({
@@ -489,9 +510,10 @@ const props = defineProps({
 // Define emits for communicating with parent
 const emit = defineEmits(['create-post', 'like-post', 'upload-file', 'delete-post', 'download-media'])
 
-const pendingAssignments = ref(4)
+const pendingTasks = ref(4)
 const showCreatePost = ref(false)
 const homeFeedTab = ref('foryou')
+const discoverSearch = ref('')
 const newPost = ref({
     content: '',
     subject: '',
@@ -500,14 +522,24 @@ const newPost = ref({
     mediaUrl: ''
 })
 
-// Mobile X-style filtering: For You = all, Following = lecturers, Discover = all (courses shown above)
-const filteredMobilePosts = computed(() => {
+// Feed filtering shared by mobile + desktop: For You = all, Following = lecturers, Discover = all (hubs shown above feed)
+const filteredPosts = computed(() => {
+    if (homeFeedTab.value === 'discover' && discoverSearch.value.trim()) {
+        const q = discoverSearch.value.trim().toLowerCase()
+        return props.posts.filter(p =>
+            (p.content && p.content.toLowerCase().includes(q)) ||
+            (p.author && p.author.toLowerCase().includes(q)) ||
+            (p.subject && p.subject.toLowerCase().includes(q))
+        )
+    }
     if (homeFeedTab.value === 'following') {
         const lecturers = props.posts.filter(p => p.authorRole === 'lecturer')
         return lecturers.length ? lecturers : props.posts
     }
     return props.posts
 })
+// Alias kept for mobile template
+const filteredMobilePosts = filteredPosts
 
 // Local functions
 const createPost = () => {
