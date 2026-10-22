@@ -1,13 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCreatePost, useDeletePost, useFeed, useToggleLike } from '../../hooks/usePosts'
 import { useUploadPostMedia } from '../../hooks/useUploads'
 import { ApiError } from '../../lib/apiClient'
-import type { Enrollment, FeedTab, Message } from '../../types'
+import type { FeedTab, Message } from '../../types'
 import DiscoverPanel from './DiscoverPanel'
 import Modal from '../ui/Modal'
 
 interface DashboardFeedProps {
-  courses: Enrollment[]
   messages: Message[]
   notifications: number
   username: string
@@ -33,7 +32,6 @@ function formatTimeAgo(timestamp: string): string {
 }
 
 export default function DashboardFeed({
-  courses,
   messages,
   notifications,
   username,
@@ -41,6 +39,7 @@ export default function DashboardFeed({
   const [feedTab, setFeedTab] = useState<FeedTab>('foryou')
   const [discoverSearch, setDiscoverSearch] = useState('')
   const [showCreatePost, setShowCreatePost] = useState(false)
+  const [pickMediaOnOpen, setPickMediaOnOpen] = useState(false)
   const [postToDelete, setPostToDelete] = useState<string | null>(null)
 
   const { data, isLoading, isError } = useFeed({
@@ -53,12 +52,22 @@ export default function DashboardFeed({
 
   const posts = useMemo(() => data?.items ?? [], [data])
 
+  const openComposer = (pickMedia = false) => {
+    setPickMediaOnOpen(pickMedia)
+    setShowCreatePost(true)
+  }
+
+  const closeComposer = () => {
+    setShowCreatePost(false)
+    setPickMediaOnOpen(false)
+  }
+
   const handleDelete = () => {
     if (!postToDelete) return
     deletePost.mutate(postToDelete, {
       onSettled: () => {
         setPostToDelete(null)
-        setShowCreatePost(false)
+        closeComposer()
       },
     })
   }
@@ -116,15 +125,15 @@ export default function DashboardFeed({
             </div>
             <button
               type="button"
-              onClick={() => setShowCreatePost(true)}
+              onClick={() => openComposer()}
               className="flex-1 text-left text-[15px] text-[#7b857b] pt-2"
             >
               Share something educational...
             </button>
             <button
               type="button"
-              onClick={() => setShowCreatePost(true)}
-              aria-label="Add media"
+              onClick={() => openComposer(true)}
+              aria-label="Add a photo or video"
               className="self-center w-9 h-9 rounded-full bg-[#fdf5d7] text-[#8a6d00] flex items-center justify-center"
             >
               <i className="bi bi-image" />
@@ -136,12 +145,12 @@ export default function DashboardFeed({
         {showCreatePost && feedTab !== 'discover' && (
           <div className="bg-white border-b border-[#e6e9e6] p-4">
             <PostComposer
-              courses={courses}
               variant="mobile"
-              onCancel={() => setShowCreatePost(false)}
+              autoPickMedia={pickMediaOnOpen}
+              onCancel={closeComposer}
               onSubmit={(values) => {
                 createPost.mutate(values, {
-                  onSuccess: () => setShowCreatePost(false),
+                  onSuccess: closeComposer,
                 })
               }}
             />
@@ -243,7 +252,7 @@ export default function DashboardFeed({
         {/* Mobile FAB (compose) */}
         <button
           type="button"
-          onClick={() => setShowCreatePost((visible) => !visible)}
+          onClick={() => (showCreatePost ? closeComposer() : openComposer())}
           aria-label="Create post"
           className="fixed bottom-[78px] right-4 z-40 w-14 h-14 bg-[#f5c842] rounded-full shadow-xl flex items-center justify-center text-[#0a0a0a]"
         >
@@ -303,22 +312,31 @@ export default function DashboardFeed({
               </div>
               <button
                 type="button"
-                onClick={() => setShowCreatePost(true)}
+                onClick={() => openComposer()}
                 className="flex-1 text-left px-6 py-3.5 bg-[#f7f9f7] rounded-full text-[#7b857b] hover:bg-[#eef1ee] transition-all duration-300 focus:ring-2 focus:ring-[#f5c842] focus:ring-offset-2 font-medium"
               >
                 Share something educational with your community...
+              </button>
+              <button
+                type="button"
+                onClick={() => openComposer(true)}
+                aria-label="Add a photo or video"
+                title="Add a photo or video"
+                className="w-12 h-12 flex-shrink-0 rounded-full bg-[#fdf5d7] text-[#8a6d00] hover:bg-[#fdeeb8] hover:scale-105 flex items-center justify-center transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[#f5c842] focus:ring-offset-2"
+              >
+                <i className="bi bi-image text-xl" />
               </button>
             </div>
 
             {showCreatePost && (
               <div className="border-t border-[#e6e9e6] pt-8 space-y-6 animate-fade-in">
                 <PostComposer
-                  courses={courses}
                   variant="desktop"
-                  onCancel={() => setShowCreatePost(false)}
+                  autoPickMedia={pickMediaOnOpen}
+                  onCancel={closeComposer}
                   onSubmit={(values) => {
                     createPost.mutate(values, {
-                      onSuccess: () => setShowCreatePost(false),
+                      onSuccess: closeComposer,
                     })
                   }}
                 />
@@ -556,41 +574,57 @@ function downloadMedia(mediaUrl: string, fileName: string): void {
 
 interface ComposerValues {
   content: string
-  subject?: string
   mediaType?: 'none' | 'image' | 'video'
   mediaUrl?: string
 }
 
 interface PostComposerProps {
-  courses: Enrollment[]
   variant: 'desktop' | 'mobile'
+  /** Opens the media picker as soon as the composer mounts. */
+  autoPickMedia?: boolean
   onCancel: () => void
   onSubmit: (values: ComposerValues) => void
   error?: string
 }
 
 function PostComposer({
-  courses,
   variant,
+  autoPickMedia = false,
   onCancel,
   onSubmit,
   error,
 }: PostComposerProps) {
   const [content, setContent] = useState('')
-  const [subject, setSubject] = useState('')
   const [mediaType, setMediaType] = useState<'none' | 'image' | 'video'>('none')
   const [mediaUrl, setMediaUrl] = useState('')
   const [previewUrl, setPreviewUrl] = useState('')
   const [fileError, setFileError] = useState('')
 
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const upload = useUploadPostMedia()
   const uploading = upload.isPending
 
+  useEffect(() => {
+    if (!autoPickMedia) return
+    // Let the composer mount before opening the OS file picker.
+    const timer = window.setTimeout(() => fileInputRef.current?.click(), 60)
+    return () => window.clearTimeout(timer)
+  }, [autoPickMedia])
+
   const handleFile = async (file: File | undefined) => {
     if (!file) return
+
+    const isPhoto = file.type.startsWith('image/')
+    const isVideo = file.type.startsWith('video/')
+
+    if (!isPhoto && !isVideo) {
+      setFileError('Only photos and videos can be attached — audio files are not supported.')
+      return
+    }
+
     setFileError('')
     setPreviewUrl(URL.createObjectURL(file))
-    setMediaType(file.type.startsWith('video/') ? 'video' : 'image')
+    setMediaType(isVideo ? 'video' : 'image')
 
     try {
       const result = await upload.mutateAsync(file)
@@ -615,7 +649,6 @@ function PostComposer({
     if (!content.trim()) return
     onSubmit({
       content: content.trim(),
-      subject: subject || undefined,
       mediaType,
       mediaUrl: mediaUrl || undefined,
     })
@@ -655,32 +688,12 @@ function PostComposer({
     </div>
   ) : null
 
-  const subjectSelect = (
-    <div>
-      <label htmlFor={`post-subject-${variant}`} className="block text-sm font-medium text-[#4d554d] mb-3">
-        Subject
-      </label>
-      <select
-        id={`post-subject-${variant}`}
-        value={subject}
-        onChange={(event) => setSubject(event.target.value)}
-        className="w-full px-4 py-2.5 border border-[#e6e9e6] rounded-xl text-[#0a0a0a] focus:outline-none focus:ring-2 focus:ring-[#f5c842] focus:border-transparent font-medium"
-      >
-        <option value="">Select a subject...</option>
-        {courses.map((course) => (
-          <option key={course.id} value={course.title}>
-            {course.title}
-          </option>
-        ))}
-      </select>
-    </div>
-  )
-
   const uploadField = (
     <div>
       {variant === 'mobile' ? (
         <>
           <input
+            ref={fileInputRef}
             type="file"
             accept="image/*,video/*"
             className="hidden"
@@ -699,6 +712,7 @@ function PostComposer({
         <>
           <span className="block text-sm font-medium text-[#4d554d] mb-3">Add media</span>
           <input
+            ref={fileInputRef}
             type="file"
             accept="image/*,video/*"
             className="hidden"
@@ -727,7 +741,6 @@ function PostComposer({
           className="w-full p-3 border border-[#e6e9e6] rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-[#f5c842] text-[15px] text-[#0a0a0a]"
           rows={3}
         />
-        {subjectSelect}
         {mediaPreview}
         {fileError && <p className="text-sm text-[#8a6d00]">{fileError}</p>}
         {error && <p className="text-sm text-[#8a6d00]">{error}</p>}
@@ -771,8 +784,7 @@ function PostComposer({
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {subjectSelect}
+      <div>
         {uploadField}
       </div>
 

@@ -328,6 +328,9 @@ All endpoints are prefixed with `/api`. Protected routes expect `Authorization: 
 
 `POST /post-media` (multipart, field `file`) · `POST /course-pdf` (multipart, field `file`)
 
+Post media accepts **photos and videos only** (JPEG, PNG, GIF, WebP, MP4, WebM); audio files are
+rejected. Course outlines accept PDF only.
+
 ### Study Assistant — `/api/ai`
 
 | Method | Path | Auth | Description |
@@ -382,7 +385,8 @@ covers:
 * profile updates and the guarantee that one student can never edit another student's profile;
 * the Study Assistant: auth guard, provider status, request validation, picture rejection on a
   text-only model, and SSE streaming from a mocked upstream (including key isolation and upstream
-  rate-limit/failure handling).
+  rate-limit/failure handling);
+* post media uploads: photos and videos accepted, audio and PDF rejected, authentication enforced.
 
 The frontend suite uses Vitest and React Testing Library and covers the Discover hub filter and the
 hub search/empty-state behaviour.

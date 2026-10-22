@@ -9,7 +9,14 @@ import {
   safeFileName,
 } from './upload.service.js'
 
-const postMediaUploader = createUploader(POST_MEDIA_DIR)
+const isPhotoOrVideo = (mimeType: string) =>
+  mimeType.startsWith('image/') || mimeType.startsWith('video/')
+
+const postMediaUploader = createUploader(POST_MEDIA_DIR, {
+  allowedTypes: env.uploadAllowedTypes.filter(isPhotoOrVideo),
+  unsupportedMessage:
+    'Only photos and videos can be attached to a post — audio files are not supported.',
+})
 const coursePdfUploader = createUploader(COURSE_PDF_DIR)
 
 function publicUrl(relativePath: string): string {

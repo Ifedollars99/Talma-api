@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import { useAuth } from '../lib/auth'
-import { useEnrollments } from '../hooks/useCourses'
 import { useMessages } from '../hooks/useMessages'
 import { useNotifications } from '../hooks/useNotifications'
 import ProfileMenu from '../components/profile/ProfileMenu'
@@ -37,11 +36,9 @@ export default function DashboardPage() {
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState<Tab>('dashboard')
 
-  const { data: enrollmentsData } = useEnrollments()
   const { data: messagesData } = useMessages()
   const { data: notificationsData } = useNotifications()
 
-  const courses = useMemo(() => enrollmentsData?.enrollments ?? [], [enrollmentsData])
   const messages = useMemo(() => messagesData?.messages ?? [], [messagesData])
   const unreadMessages = useMemo(() => messages.filter((message) => message.unread).length, [messages])
   const notifications = notificationsData?.unread ?? 0
@@ -132,7 +129,6 @@ export default function DashboardPage() {
             {activeTab === 'dashboard' && (
               <div className="space-y-8">
                 <DashboardFeed
-                  courses={courses}
                   messages={messages}
                   notifications={notifications}
                   username={username}

@@ -44,8 +44,16 @@ const MIME_EXTENSIONS: Record<string, string> = {
 }
 
 /** Builds the multer middleware used for a specific upload folder. */
-export function createUploader(folder: string) {
+export interface UploaderOptions {
+  /** MIME types accepted for this folder. Defaults to the global allow-list. */
+  allowedTypes?: readonly string[]
+  /** Message returned when the file type is rejected. */
+  unsupportedMessage?: string
+}
+
+export function createUploader(folder: string, options: UploaderOptions = {}) {
   ensureUploadDirs()
+  const allowedTypes = options.allowedTypes ?? env.uploadAllowedTypes
 
   const storage = multer.diskStorage({
     destination: (_req, _file, cb) => {
@@ -61,8 +69,12 @@ export function createUploader(folder: string) {
     storage,
     limits: { fileSize: env.UPLOAD_MAX_MB * 1024 * 1024 },
     fileFilter: (_req, file, cb) => {
-      if (!env.uploadAllowedTypes.includes(file.mimetype)) {
-        cb(AppError.badRequest(`Unsupported file type: ${file.mimetype}`))
+      if (!allowedTypes.includes(file.mimetype)) {
+        cb(
+          AppError.badRequest(
+            options.unsupportedMessage ?? `Unsupported file type: ${file.mimetype}`,
+          ),
+        )
         return
       }
       cb(null, true)
