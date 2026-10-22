@@ -1,14 +1,18 @@
-// Generates one study-outline PDF per catalog course into public/course-pdfs/.
+// Generates one study-outline PDF per catalog course into client/public/course-pdfs/.
 // Usage: node scripts/generate-course-pdfs.mjs
-// Parses src/data/universities.js (f() / deptN() / deptY() / c() calls) — no imports needed.
+//
+// The catalog lives in the API package (server/src/data/catalog.seed.ts) because it is
+// server data now — the client reads it through GET /api/courses/catalog. This script
+// parses the `f()` / `deptN()` / `deptY()` / `c()` calls straight from the source so no
+// imports are required.
 import { readFileSync, mkdirSync, writeFileSync, existsSync } from 'fs'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const dataPath = join(root, 'src', 'data', 'universities.js')
-const outDir = join(root, 'public', 'course-pdfs')
+const dataPath = join(root, 'server', 'src', 'data', 'catalog.seed.ts')
+const outDir = join(root, 'client', 'public', 'course-pdfs')
 
 const slug = (s) =>
     s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
@@ -68,7 +72,7 @@ for (const course of courses) {
         }
     }
 
-    page.drawText('STUDY SOCIAL · COURSE OUTLINE', { x: 50, y, size: 11, font: helvBold, color: gold })
+    page.drawText('TALMA · COURSE OUTLINE', { x: 50, y, size: 11, font: helvBold, color: gold })
     y -= 30
     text(course.code ? `${course.code} — ${course.title}` : course.title, { size: 22, font: helvBold, gap: 30 })
     text(`${course.dept} · ${course.faculty}`, { size: 12, color: grey, gap: 26 })
@@ -102,4 +106,4 @@ for (const course of courses) {
     made++
 }
 
-console.log(`Wrote ${made} PDFs to public/course-pdfs/.`)
+console.log(`Wrote ${made} PDFs to client/public/course-pdfs/.`)

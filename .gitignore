@@ -1,21 +1,34 @@
-.DS_Store
-node_modules
-/dist
+# Dependencies
+node_modules/
 
+# Build output
+dist/
+build/
 
-# local env files
-.env.local
-.env.*.local
+# Environment files (never commit real secrets)
+.env
+.env.*
+!.env.example
 
-# Log files
+# Server runtime data
+server/uploads/*
+!server/uploads/.gitkeep
+server/uploads-test/
+server/coverage/
+
+# Logs
+logs/
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Editor directories and files
-.idea
-.vscode
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
 *.suo
 *.ntvs*
 *.njsproj
