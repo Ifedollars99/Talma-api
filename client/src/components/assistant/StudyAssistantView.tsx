@@ -917,7 +917,7 @@ export default function StudyAssistantView() {
                                   key={`${messageKey}-${imageIndex}`}
                                   src={source}
                                   alt={`Attached picture ${imageIndex + 1}`}
-                                  className="max-h-64 w-full rounded-lg object-cover"
+                                  className="max-h-64 w-full rounded-lg object-contain"
                                 />
                               ))}
                             </div>
@@ -1040,7 +1040,7 @@ export default function StudyAssistantView() {
                           type="button"
                           onClick={() => removeAttachment(attachment.id)}
                           aria-label={`Remove ${attachment.name}`}
-                          className="absolute right-0.5 top-0.5 grid h-5 w-5 place-items-center rounded-full bg-black/70 text-white opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                          className="absolute right-0.5 top-0.5 grid h-5 w-5 place-items-center rounded-full bg-black/70 text-white opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
                         >
                           <i className="bi bi-x text-[11px]" />
                         </button>
