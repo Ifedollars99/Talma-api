@@ -418,11 +418,11 @@ export default function SignUpPage() {
 
           {/* Footer */}
           <div className="text-center">
-            <p className="text-black text-sm">
+            <p className="text-[#f5c842] text-sm">
               Already have an account?
               <Link
                 to="/signin"
-                className="text-black hover:text-white/75 transition-colors font-medium underline"
+                className="text-[#f5c842] hover:text-white/75 transition-colors font-medium underline"
               >
                 Sign in
               </Link>
