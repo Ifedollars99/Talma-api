@@ -11,8 +11,6 @@ interface DashboardFeedProps {
   messages: Message[]
   notifications: number
   username: string
-  /** Switches the dashboard to the Classroom tab. */
-  onOpenCourses: () => void
 }
 
 const FEED_TABS: { id: FeedTab; label: string }[] = [
@@ -39,7 +37,6 @@ export default function DashboardFeed({
   messages,
   notifications,
   username,
-  onOpenCourses,
 }: DashboardFeedProps) {
   const [feedTab, setFeedTab] = useState<FeedTab>('foryou')
   const [discoverSearch, setDiscoverSearch] = useState('')
@@ -71,14 +68,13 @@ export default function DashboardFeed({
       {/* ============ MOBILE X / TWITTER HOME (mobile only) ============ */}
       <div className="lg:hidden -mx-4 -mt-4">
         {/* Mobile Welcome (same as desktop, compact) — before tabs */}
-        <div className="mx-4 mt-4 mb-3 relative overflow-hidden bg-gradient-to-br from-[#0a0a0a] via-[#0a0a0a] to-[#1f1f1f] rounded-2xl p-6 text-white shadow-lg">
-          <div className="absolute -top-20 -right-20 w-40 h-40 bg-[#f5c842]/10 rounded-full blur-3xl" />
+        <div className="welcome-card mx-4 mt-4 mb-3 relative overflow-hidden bg-gradient-to-br from-[#0a0a0a] via-[#0a0a0a] to-[#1f1f1f] rounded-2xl px-5 py-4 text-white shadow-lg">
+          <div className="welcome-card__glow absolute -top-20 -right-20 w-40 h-40 bg-[#f5c842]/10 rounded-full blur-3xl" />
           <div className="relative z-10">
-            <p className="text-[#f5c842] text-xs font-medium tracking-wide mb-1 uppercase">
-              Welcome back
-            </p>
-            <h1 className="font-heading text-3xl font-semibold mb-2">{username}</h1>
-            <p className="text-sm text-white/70 leading-relaxed">
+            <h1 className="welcome-card__title font-heading text-xl font-semibold">
+              Welcome back, <span className="text-[#f5c842]">{username}</span>
+            </h1>
+            <p className="welcome-card__meta text-sm text-white/70 leading-relaxed mt-1">
               You have{' '}
               <span className="text-[#f5c842] font-medium">{notifications} new notifications</span>{' '}
               and <span className="text-[#86efac] font-medium">{messages.length} unread</span>{' '}
@@ -255,21 +251,19 @@ export default function DashboardFeed({
         </button>
       </div>
 
-      {/* Welcome Section - More Spacious & Premium (DESKTOP ONLY) */}
-      <div className="hidden lg:block relative overflow-hidden bg-gradient-to-br from-[#0a0a0a] via-[#0a0a0a] to-[#1f1f1f] rounded-2xl p-12 text-white shadow-lg">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-[#f5c842]/5 rounded-full blur-3xl" />
-        <div className="absolute -bottom-20 -left-20 w-60 h-60 bg-[#15803d]/5 rounded-full blur-3xl" />
+      {/* Welcome Section — compact greeting (DESKTOP ONLY) */}
+      <div className="welcome-card hidden lg:block relative overflow-hidden bg-gradient-to-br from-[#0a0a0a] via-[#0a0a0a] to-[#1f1f1f] rounded-2xl px-8 py-6 text-white shadow-lg">
+        <div className="welcome-card__glow absolute -top-24 -right-16 w-56 h-56 bg-[#f5c842]/10 rounded-full blur-3xl" />
+        <div className="welcome-card__glow welcome-card__glow--green absolute -bottom-24 -left-16 w-56 h-56 bg-[#15803d]/20 rounded-full blur-3xl" />
 
-        <div className="relative z-10">
-          <p className="text-[#f5c842] text-sm font-medium tracking-wide mb-2 uppercase">
-            Welcome back
-          </p>
-          <h1 className="font-heading text-5xl font-semibold mb-4">{username}</h1>
-          <p className="text-lg text-white/70 max-w-2xl leading-relaxed">
-            You have{' '}
+        <div className="relative z-10 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+          <h1 className="welcome-card__title font-heading text-2xl xl:text-3xl font-semibold">
+            Welcome back, <span className="text-[#f5c842]">{username}</span>
+          </h1>
+          <p className="welcome-card__meta text-sm text-white/70">
             <span className="text-[#f5c842] font-medium">{notifications} new notifications</span>{' '}
-            and <span className="text-[#22c55e] font-medium">{messages.length} unread</span>{' '}
-            messages waiting for your attention.
+            and <span className="text-[#22c55e] font-medium">{messages.length} unread</span> messages
+            waiting.
           </p>
         </div>
       </div>
@@ -296,135 +290,6 @@ export default function DashboardFeed({
           ))}
         </div>
       </div>
-
-      {/* Expanded Quick Stats - Premium Grid (DESKTOP ONLY, hidden on Discover) */}
-      {feedTab !== 'discover' && (
-        <div className="hidden lg:grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Classroom Stat */}
-          <div className="group relative bg-white rounded-2xl overflow-hidden border border-[#e6e9e6] shadow-sm hover:shadow-xl transition-all duration-500">
-            <div className="absolute inset-0 bg-gradient-to-br from-[#fdf5d7]/30 via-transparent to-transparent" />
-            <div className="relative p-8 h-full flex flex-col">
-              <div className="flex items-start justify-between mb-8">
-                <div>
-                  <p className="text-[#7b857b] text-sm font-medium tracking-wide mb-3">
-                    CLASSROOM
-                  </p>
-                  <p className="font-heading text-6xl font-semibold text-[#0a0a0a]">
-                    {courses.length}
-                  </p>
-                  <p className="text-[#7b857b] text-sm mt-2">courses in your classroom</p>
-                </div>
-                <div className="w-16 h-16 bg-gradient-to-br from-[#fdf5d7] to-[#fdeeb8] rounded-xl flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow">
-                  <i className="bi bi-easel2 text-3xl text-[#8a6d00]" />
-                </div>
-              </div>
-
-              <div className="mt-auto pt-6 border-t border-[#e6e9e6]">
-                <div className="space-y-2">
-                  {courses.slice(0, 3).map((course) => (
-                    <div
-                      key={course.id}
-                      className="flex items-center text-sm text-[#4d554d]"
-                    >
-                      <span className="inline-block w-2 h-2 bg-[#f5c842] rounded-full mr-3" />
-                      {course.title}
-                    </div>
-                  ))}
-                </div>
-                {courses.length > 3 && (
-                  <button
-                    type="button"
-                    onClick={onOpenCourses}
-                    className="mt-4 text-[#8a6d00] text-sm font-medium hover:text-[#6b5400] transition-colors"
-                  >
-                    Open classroom →
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Messages Stat */}
-          <div className="group relative bg-white rounded-2xl overflow-hidden border border-[#e6e9e6] shadow-sm hover:shadow-xl transition-all duration-500">
-            <div className="absolute inset-0 bg-gradient-to-br from-[#e6f6ea]/30 via-transparent to-transparent" />
-            <div className="relative p-8 h-full flex flex-col">
-              <div className="flex items-start justify-between mb-8">
-                <div>
-                  <p className="text-[#7b857b] text-sm font-medium tracking-wide mb-3">MESSAGES</p>
-                  <p className="font-heading text-6xl font-semibold text-[#0a0a0a]">
-                    {messages.length}
-                  </p>
-                  <p className="text-[#7b857b] text-sm mt-2">unread conversations</p>
-                </div>
-                <div className="w-16 h-16 bg-gradient-to-br from-[#e6f6ea] to-[#dcfce7] rounded-xl flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow">
-                  <i className="bi bi-chat-dots text-3xl text-[#15803d]" />
-                </div>
-              </div>
-
-              <div className="mt-auto pt-6 border-t border-[#e6e9e6]">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-[#4d554d]">Response time</span>
-                    <span className="text-[#15803d] font-medium">2.4 hours</span>
-                  </div>
-                  <div className="w-full h-1.5 bg-[#e6e9e6] rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-[#15803d] to-[#22c55e] rounded-full"
-                      style={{ width: '78%' }}
-                    />
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="mt-4 text-[#15803d] text-sm font-medium hover:text-[#14532d] transition-colors"
-                >
-                  Open inbox →
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Community Posts Stat */}
-          <div className="group relative bg-white rounded-2xl overflow-hidden border border-[#e6e9e6] shadow-sm hover:shadow-xl transition-all duration-500">
-            <div className="absolute inset-0 bg-gradient-to-br from-[#eef3ee]/40 via-transparent to-transparent" />
-            <div className="relative p-8 h-full flex flex-col">
-              <div className="flex items-start justify-between mb-8">
-                <div>
-                  <p className="text-[#7b857b] text-sm font-medium tracking-wide mb-3">
-                    COMMUNITY POSTS
-                  </p>
-                  <p className="font-heading text-6xl font-semibold text-[#0a0a0a]">
-                    {data?.total ?? 0}
-                  </p>
-                  <p className="text-[#7b857b] text-sm mt-2">in the feed</p>
-                </div>
-                <div className="w-16 h-16 bg-gradient-to-br from-[#eef3ee] to-[#e8ece8] rounded-xl flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow">
-                  <i className="bi bi-people text-3xl text-[#0a0a0a]" />
-                </div>
-              </div>
-
-              <div className="mt-auto pt-6 border-t border-[#e6e9e6]">
-                <div className="space-y-3">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-[#4d554d]">Your engagement</span>
-                    <span className="text-[#0a0a0a] font-medium">12 interactions</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className="inline-flex items-center space-x-1 text-xs px-2 py-1 bg-[#fdf5d7] text-[#8a6d00] rounded-full">
-                      <i className="bi bi-heart text-xs" />
-                      <span>28 likes</span>
-                    </span>
-                    <span className="inline-flex items-center space-x-1 text-xs px-2 py-1 bg-[#e6f6ea] text-[#15803d] rounded-full">
-                      <i className="bi bi-chat text-xs" />
-                      <span>8 comments</span>
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Create Post Section - Refined (DESKTOP ONLY, hidden on Discover) */}
       {feedTab !== 'discover' && (

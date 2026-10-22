@@ -136,7 +136,6 @@ export default function DashboardPage() {
                   messages={messages}
                   notifications={notifications}
                   username={username}
-                  onOpenCourses={() => setActiveTab('classroom')}
                 />
               </div>
             )}
