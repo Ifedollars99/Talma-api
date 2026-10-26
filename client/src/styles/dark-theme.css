@@ -1,0 +1,301 @@
+/* ---------------------------------------------------------------------------
+   Talma dark theme.
+   The attribute is only applied while a product screen (dashboard, profile,
+   hubs) is mounted, so the landing and auth screens always keep their light
+   marketing design.
+   --------------------------------------------------------------------------- */
+
+html[data-theme='dark'] {
+  color-scheme: dark;
+  background: #0b0f0c;
+}
+
+html[data-theme='dark'] body {
+  background: #0b0f0c;
+}
+
+html[data-theme='dark'] .talma-app,
+html[data-theme='dark'] .hub-shell {
+  color: #e8ede8;
+  background:
+    radial-gradient(900px 460px at 100% -10%, rgba(245, 200, 66, 0.08), transparent 62%),
+    radial-gradient(820px 460px at -12% 0%, rgba(21, 128, 61, 0.12), transparent 62%),
+    #0b0f0c !important;
+}
+
+html[data-theme='dark'] .talma-app ::selection,
+html[data-theme='dark'] .hub-shell ::selection {
+  background: #f5c842;
+  color: #0a0a0a;
+}
+
+/* ---------- Neutral surfaces ---------- */
+html[data-theme='dark'] .bg-white,
+html[data-theme='dark'] [class~='bg-[#fbfcfb]'] {
+  background-color: #141816 !important;
+}
+
+html[data-theme='dark'] [class~='bg-[#f7f9f7]'] {
+  background-color: #1a211b !important;
+}
+
+html[data-theme='dark'] [class~='bg-[#f7f9f7]/50'] {
+  background-color: rgba(26, 33, 27, 0.5) !important;
+}
+
+html[data-theme='dark'] [class~='bg-[#f7f9f7]/60'] {
+  background-color: rgba(26, 33, 27, 0.6) !important;
+}
+
+html[data-theme='dark'] [class~='bg-[#fafbfa]'],
+html[data-theme='dark'] [class~='bg-[#f2f5f2]'] {
+  background-color: #181f19 !important;
+}
+
+html[data-theme='dark'] [class~='bg-[#eef1ee]'],
+html[data-theme='dark'] [class~='bg-[#eef3ee]'] {
+  background-color: #1d241e !important;
+}
+
+html[data-theme='dark'] [class~='bg-[#edf4dc]'],
+html[data-theme='dark'] [class~='bg-[#f1f5e6]'],
+html[data-theme='dark'] [class~='bg-[#f5f9e8]'] {
+  background-color: #172417 !important;
+}
+
+html[data-theme='dark'] [class~='bg-[#fdf5d7]'],
+html[data-theme='dark'] [class~='bg-[#fffbef]'] {
+  background-color: #2b2511 !important;
+}
+
+html[data-theme='dark'] [class~='bg-[#fef2f2]'] {
+  background-color: #2a1515 !important;
+}
+
+html[data-theme='dark'] [class~='bg-[#cbd2cb]'] {
+  background-color: #344035 !important;
+}
+
+html[data-theme='dark'] [class~='bg-white/95'] {
+  background-color: rgba(20, 24, 22, 0.95) !important;
+}
+
+/* ---------- Text ---------- */
+html[data-theme='dark'] [class~='text-[#0a0a0a]'] {
+  color: #e8ede8 !important;
+}
+
+html[data-theme='dark'] [class~='text-[#263026]'] {
+  color: #dfe7df !important;
+}
+
+html[data-theme='dark'] [class~='text-[#4d554d]'] {
+  color: #b3bdb3 !important;
+}
+
+html[data-theme='dark'] [class~='text-[#7b857b]'],
+html[data-theme='dark'] [class~='text-[#8a938a]'],
+html[data-theme='dark'] [class~='text-[#9aa39a]'],
+html[data-theme='dark'] [class~='text-[#a0a8a0]'] {
+  color: #8f9a90 !important;
+}
+
+html[data-theme='dark'] [class~='text-[#8a6d00]'],
+html[data-theme='dark'] [class~='text-[#6b5400]'] {
+  color: #f5c842 !important;
+}
+
+html[data-theme='dark'] [class~='text-[#8a6d00]/70'] {
+  color: rgba(245, 200, 66, 0.7) !important;
+}
+
+html[data-theme='dark'] [class~='text-[#2c7a40]'],
+html[data-theme='dark'] [class~='text-[#2f6b3d]'],
+html[data-theme='dark'] [class~='text-[#3a8f4d]'] {
+  color: #86efac !important;
+}
+
+html[data-theme='dark'] [class~='text-[#7cb342]'] {
+  color: #a3d977 !important;
+}
+
+html[data-theme='dark'] [class~='text-[#991b1b]'],
+html[data-theme='dark'] [class~='text-[#c4302b]'] {
+  color: #fca5a5 !important;
+}
+
+html[data-theme='dark'] [class~='hover:text-[#0a0a0a]']:hover {
+  color: #f5f7f5 !important;
+}
+
+html[data-theme='dark'] [class~='hover:text-[#4d554d]']:hover {
+  color: #d6ddd6 !important;
+}
+
+html[data-theme='dark'] [class~='hover:text-[#8a6d00]']:hover,
+html[data-theme='dark'] [class~='hover:text-[#6b5400]']:hover {
+  color: #ffd166 !important;
+}
+
+html[data-theme='dark'] [class~='hover:text-[#3a8f4d]']:hover {
+  color: #86efac !important;
+}
+
+html[data-theme='dark'] [class~='hover:text-[#7cb342]']:hover {
+  color: #a3d977 !important;
+}
+
+html[data-theme='dark'] [class~='placeholder-[#7b857b]']::placeholder {
+  color: #6f7a70 !important;
+}
+
+/* Dark text on solid brand-gold surfaces must stay dark. */
+html[data-theme='dark'] [class~='bg-[#f5c842]'] [class~='text-[#0a0a0a]'],
+html[data-theme='dark'] [class~='bg-[#f5c842]'][class~='text-[#0a0a0a]'],
+html[data-theme='dark'] [class~='bg-[#ffd166]'] [class~='text-[#0a0a0a]'],
+html[data-theme='dark'] [class~='bg-[#ffd166]'][class~='text-[#0a0a0a]'],
+html[data-theme='dark'] [class*='from-[#f5c842]'] [class~='text-[#0a0a0a]'],
+html[data-theme='dark'] [class*='from-[#f5c842]'][class~='text-[#0a0a0a]'],
+html[data-theme='dark'] [class~='hover:bg-[#f5c842]'][class~='hover:text-[#0a0a0a]']:hover {
+  color: #0a0a0a !important;
+}
+
+/* ---------- Borders & dividers ---------- */
+html[data-theme='dark'] .border-white {
+  border-color: #141816 !important;
+}
+
+html[data-theme='dark'] [class~='border-[#e6e9e6]'],
+html[data-theme='dark'] [class~='border-[#dfe5df]'],
+html[data-theme='dark'] [class~='border-[#eef1ee]'],
+html[data-theme='dark'] [class~='border-[#e8ece8]'] {
+  border-color: #2a332b !important;
+}
+
+html[data-theme='dark'] [class~='border-[#cfd6cf]'] {
+  border-color: #3b463c !important;
+}
+
+html[data-theme='dark'] [class~='border-[#e8f2d4]'],
+html[data-theme='dark'] [class~='border-[#d6e8bd]'] {
+  border-color: #2b3d2b !important;
+}
+
+html[data-theme='dark'] [class~='border-[#fecaca]'] {
+  border-color: #4a2222 !important;
+}
+
+html[data-theme='dark'] [class~='hover:border-[#8a6d00]']:hover {
+  border-color: #f5c842 !important;
+}
+
+html[data-theme='dark'] [class~='divide-[#e6e9e6]'] > :not([hidden]) ~ :not([hidden]) {
+  border-color: #2a332b !important;
+}
+
+/* ---------- Hover / active fills ---------- */
+html[data-theme='dark'] [class~='hover:bg-[#f7f9f7]']:hover,
+html[data-theme='dark'] [class~='hover:bg-[#fafbfa]']:hover,
+html[data-theme='dark'] [class~='hover:bg-[#f5f8f5]']:hover,
+html[data-theme='dark'] [class~='hover:bg-[#f2f4f2]']:hover,
+html[data-theme='dark'] [class~='hover:bg-[#eef1ee]']:hover,
+html[data-theme='dark'] [class~='hover:bg-[#f2f5f2]']:hover {
+  background-color: #1b221c !important;
+}
+
+html[data-theme='dark'] [class~='hover:bg-[#edf4dc]']:hover,
+html[data-theme='dark'] [class~='group-hover:bg-[#edf4dc]']:hover {
+  background-color: #172417 !important;
+}
+
+html[data-theme='dark'] [class~='hover:bg-[#eef3ee]']:hover,
+html[data-theme='dark'] [class~='group-hover:bg-[#eef3ee]']:hover {
+  background-color: #1d241e !important;
+}
+
+html[data-theme='dark'] [class~='hover:bg-[#fdf5d7]']:hover,
+html[data-theme='dark'] [class~='hover:bg-[#fdf3cf]']:hover,
+html[data-theme='dark'] [class~='hover:bg-[#fbeeb8]']:hover,
+html[data-theme='dark'] [class~='hover:bg-[#fdeeb8]']:hover,
+html[data-theme='dark'] [class~='group-hover:bg-[#fdf5d7]']:hover {
+  background-color: #2b2511 !important;
+}
+
+html[data-theme='dark'] [class~='active:bg-[#fafbfa]']:active,
+html[data-theme='dark'] [class~='active:bg-[#eef1ee]']:active {
+  background-color: #1b221c !important;
+}
+
+/* ---------- Light gradient cards / icon wells ---------- */
+html[data-theme='dark'] [class*='bg-gradient'][class*='from-white'][class*='to-white'] {
+  background-image: linear-gradient(135deg, #141816 0%, #1e1b11 50%, #141816 100%) !important;
+}
+
+html[data-theme='dark'] [class*='bg-gradient'][class*='from-[#eef3ee]'] {
+  background-image: linear-gradient(135deg, #1d241e 0%, #151a16 100%) !important;
+}
+
+html[data-theme='dark'] [class*='bg-gradient'][class*='from-[#edf4dc]'] {
+  background-image: linear-gradient(135deg, #172417 0%, #1d2b1c 100%) !important;
+}
+
+html[data-theme='dark'] [class*='bg-gradient'][class*='from-[#fdf5d7]'] {
+  background-image: linear-gradient(135deg, #2b2511 0%, #3a3114 100%) !important;
+}
+
+/* ---------- Buttons that were intentionally black ---------- */
+html[data-theme='dark'] .talma-app a[class~='bg-[#0a0a0a]'],
+html[data-theme='dark'] .talma-app button[class~='bg-[#0a0a0a]'] {
+  border: 1px solid #2f3a30;
+}
+
+/* ---------- Inputs ---------- */
+html[data-theme='dark'] .talma-app input,
+html[data-theme='dark'] .talma-app textarea,
+html[data-theme='dark'] .talma-app select {
+  color: #e8ede8;
+}
+
+html[data-theme='dark'] .talma-app input::placeholder,
+html[data-theme='dark'] .talma-app textarea::placeholder {
+  color: #6f7a70;
+}
+
+html[data-theme='dark'] .talma-app input[type='checkbox'],
+html[data-theme='dark'] .talma-app input[type='radio'] {
+  accent-color: #f5c842;
+}
+
+/* Switch knobs must stay white even though cards use `bg-white`. */
+html[data-theme='dark'] [role='switch'] [class~='bg-white'] {
+  background-color: #ffffff !important;
+}
+
+/* ---------- Scrollbars ---------- */
+html[data-theme='dark'] .talma-app ::-webkit-scrollbar-track,
+html[data-theme='dark'] .hub-shell ::-webkit-scrollbar-track {
+  background: #0d120e;
+}
+
+html[data-theme='dark'] .talma-app ::-webkit-scrollbar-thumb,
+html[data-theme='dark'] .hub-shell ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #f5c842, #7cb342);
+}
+
+/* ---------- Modal / toast surfaces ---------- */
+html[data-theme='dark'] [role='dialog'] {
+  color: #e8ede8;
+}
+
+html[data-theme='dark'] .animate-toast-in {
+  border-color: rgba(245, 200, 66, 0.3);
+}
+
+/* ---------- Small accessibility touches ---------- */
+html[data-theme='dark'] .talma-app a:focus-visible,
+html[data-theme='dark'] .talma-app button:focus-visible,
+html[data-theme='dark'] .hub-shell a:focus-visible,
+html[data-theme='dark'] .hub-shell button:focus-visible {
+  outline: 2px solid #f5c842;
+  outline-offset: 2px;
+}

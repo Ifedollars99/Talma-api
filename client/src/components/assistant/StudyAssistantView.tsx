@@ -191,11 +191,11 @@ function makeTitle(text: string): string {
 
 function TypingDots() {
   return (
-    <span className="inline-flex items-center gap-1.5 py-2" aria-label="Talma AI is typing">
+    <span className="inline-flex items-center gap-1.5 py-2" aria-label="LINT is typing">
       {[0, 1, 2].map((dot) => (
         <span
           key={dot}
-          className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#15803d]"
+          className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#3a8f4d]"
           style={{ animationDelay: `${dot * 0.12}s` }}
         />
       ))}
@@ -235,7 +235,7 @@ export default function StudyAssistantView() {
   const statusText = !serverStatus
     ? 'Checking AI…'
     : serverKeyed
-      ? `Talma AI · ${serverStatus.model}`
+      ? `LINT · ${serverStatus.model}`
       : freeMode
         ? `Free AI · ${serverStatus.model}`
         : 'Demo mode'
@@ -696,13 +696,16 @@ export default function StudyAssistantView() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8a6d00]">
-            Talma AI · Always on
+            Talma · Always on
           </p>
           <h2 className="mt-1 font-heading text-3xl font-semibold text-[#0a0a0a]">
-            Study Assistant
+            LINT
           </h2>
           <p className="mt-1 max-w-2xl text-[#4d554d]">
-            Ask anything — writing, code, maths, research, planning or revision. A full assistant,
+            <span className="font-medium text-[#0a0a0a]">
+              Learning Intelligence
+            </span>{' '}
+            — ask anything: writing, code, maths, research, planning or revision. A full assistant,
             not just a textbook.
           </p>
         </div>
@@ -716,13 +719,13 @@ export default function StudyAssistantView() {
             }
             className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${
               connected
-                ? 'border-[#22c55e]/40 bg-[#22c55e]/10 text-[#15803d]'
+                ? 'border-[#7cb342]/40 bg-[#7cb342]/10 text-[#3a8f4d]'
                 : 'border-[#f5c842]/50 bg-[#fdf5d7] text-[#8a6d00]'
             }`}
           >
             <span
               className={`h-2 w-2 rounded-full ${
-                connected ? 'animate-pulse bg-[#22c55e]' : 'bg-[#f5c842]'
+                connected ? 'animate-pulse bg-[#7cb342]' : 'bg-[#f5c842]'
               }`}
             />
             {statusText}
@@ -730,7 +733,7 @@ export default function StudyAssistantView() {
           <button
             type="button"
             onClick={newChat}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-3.5 py-2 text-xs font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-[#15803d] hover:shadow-lg"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-3.5 py-2 text-xs font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-[#3a8f4d] hover:shadow-lg"
           >
             <i className="bi bi-plus-lg" />
             New chat
@@ -744,7 +747,7 @@ export default function StudyAssistantView() {
           <button
             type="button"
             onClick={newChat}
-            className="flex items-center justify-center gap-2 rounded-xl bg-[#0a0a0a] px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#15803d]"
+            className="flex items-center justify-center gap-2 rounded-xl bg-[#0a0a0a] px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#3a8f4d]"
           >
             <i className="bi bi-plus-lg" />
             New chat
@@ -825,7 +828,7 @@ export default function StudyAssistantView() {
               type="button"
               onClick={newChat}
               aria-label="New chat"
-              className="grid h-8 w-8 place-items-center rounded-lg bg-[#0a0a0a] text-white transition-colors hover:bg-[#15803d]"
+              className="grid h-8 w-8 place-items-center rounded-lg bg-[#0a0a0a] text-white transition-colors hover:bg-[#3a8f4d]"
             >
               <i className="bi bi-plus-lg text-xs" />
             </button>
@@ -945,13 +948,13 @@ export default function StudyAssistantView() {
                       </div>
                       <div className="min-w-0 flex-1 pt-0.5">
                         <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a6d00]">
-                          Talma AI
+                          LINT
                         </p>
 
                         {message.content ? <Markdown text={message.content} /> : <TypingDots />}
 
                         {isStreaming && isLastAssistant && message.content && (
-                          <span className="mt-1 inline-block h-4 w-[3px] animate-pulse rounded-full bg-[#15803d] align-middle" />
+                          <span className="mt-1 inline-block h-4 w-[3px] animate-pulse rounded-full bg-[#3a8f4d] align-middle" />
                         )}
 
                         {!isStreaming && isLastAssistant && message.content && (
@@ -1058,7 +1061,7 @@ export default function StudyAssistantView() {
                 )}
 
                 <label htmlFor="talma-ai-input" className="sr-only">
-                  Message Talma AI
+                  Message LINT
                 </label>
                 <textarea
                   id="talma-ai-input"
@@ -1071,7 +1074,7 @@ export default function StudyAssistantView() {
                   placeholder={
                     mode === 'study'
                       ? 'Ask about any topic, or attach a picture…'
-                      : 'Message Talma AI, or attach a picture…'
+                      : 'Message LINT, or attach a picture…'
                   }
                   className="max-h-40 w-full resize-none bg-transparent px-4 pb-1 pt-3.5 text-sm leading-relaxed text-[#0a0a0a] outline-none placeholder:text-[#9aa39a]"
                 />
@@ -1147,7 +1150,7 @@ export default function StudyAssistantView() {
                         type="button"
                         onClick={stop}
                         aria-label="Stop generating"
-                        className="grid h-9 w-9 place-items-center rounded-full bg-[#0a0a0a] text-white transition-colors hover:bg-[#15803d]"
+                        className="grid h-9 w-9 place-items-center rounded-full bg-[#0a0a0a] text-white transition-colors hover:bg-[#3a8f4d]"
                       >
                         <i className="bi bi-stop-fill text-sm" />
                       </button>
@@ -1157,7 +1160,7 @@ export default function StudyAssistantView() {
                         onClick={() => send()}
                         disabled={(!input.trim() && attachments.length === 0) || isPreparing}
                         aria-label="Send message"
-                        className="grid h-9 w-9 place-items-center rounded-full bg-[#15803d] text-white transition-all hover:bg-[#22c55e] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-35"
+                        className="grid h-9 w-9 place-items-center rounded-full bg-[#3a8f4d] text-white transition-all hover:bg-[#7cb342] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-35"
                       >
                         <i className="bi bi-arrow-up" />
                       </button>
@@ -1167,7 +1170,7 @@ export default function StudyAssistantView() {
               </div>
 
               <p className="mt-2 text-center text-[10.5px] leading-relaxed text-[#8a938a]">
-                Talma AI can make mistakes — check important information. Pictures only (no video
+                LINT can make mistakes — check important information. Pictures only (no video
                 or audio); Shift + Enter adds a new line.
               </p>
               {freeMode && !visionReady && (

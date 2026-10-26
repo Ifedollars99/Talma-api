@@ -10,8 +10,8 @@ export const aspirantCategories: HubCategory[] = [
     "title": "Courses available at OOU",
     "desc": "OOU runs programmes across Arts, Education, Law, Science, Social & Management Sciences, Engineering, Pharmacy, Medicine and related faculties. Confirm the current list on the portal — departments change per session.",
     "icon": "bi-grid",
-    "bg": "from-[#e6f6ea] to-[#dcfce7]",
-    "iconColor": "text-[#15803d]",
+    "bg": "from-[#edf4dc] to-[#e8f2d4]",
+    "iconColor": "text-[#3a8f4d]",
     "source": "OOU portal programme list, JAMB brochure.",
     "items": [
       {
@@ -91,8 +91,8 @@ export const aspirantCategories: HubCategory[] = [
     "title": "Post-UTME requirements & aggregate",
     "desc": "How OOU screening and aggregate scores work.",
     "icon": "bi-calculator",
-    "bg": "from-[#e6f6ea] to-[#dcfce7]",
-    "iconColor": "text-[#15803d]",
+    "bg": "from-[#edf4dc] to-[#e8f2d4]",
+    "iconColor": "text-[#3a8f4d]",
     "source": "OOU Post-UTME portal announcements.",
     "items": [
       {
@@ -199,8 +199,8 @@ export const aspirantCategories: HubCategory[] = [
     "title": "Aspirant FAQ",
     "desc": "Quick answers to repeated questions.",
     "icon": "bi-question-circle",
-    "bg": "from-[#e6f6ea] to-[#dcfce7]",
-    "iconColor": "text-[#15803d]",
+    "bg": "from-[#edf4dc] to-[#e8f2d4]",
+    "iconColor": "text-[#3a8f4d]",
     "items": [
       {
         "title": "Does OOU accept second choice?",

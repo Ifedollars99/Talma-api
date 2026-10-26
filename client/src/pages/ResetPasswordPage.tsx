@@ -53,7 +53,7 @@ export default function ResetPasswordPage() {
       <div className="relative w-full max-w-md z-10">
         <div className="bg-black/40 backdrop-blur-xl border border-[#f5c842]/25 rounded-3xl shadow-2xl p-8 space-y-8">
           <div className="text-center space-y-2">
-            <div className="w-16 h-16 bg-gradient-to-r from-[#15803d] to-[#22c55e] rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+            <div className="w-16 h-16 bg-gradient-to-r from-[#3a8f4d] to-[#7cb342] rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
               <i className="bi bi-shield-lock-fill text-white text-2xl" />
             </div>
             <h1 className="text-3xl font-bold text-white">Choose a new password</h1>
@@ -104,7 +104,7 @@ export default function ResetPasswordPage() {
             <button
               type="submit"
               disabled={loading || !token}
-              className="w-full py-3 px-4 bg-gradient-to-r from-[#15803d] to-[#22c55e] hover:from-[#22c55e] hover:to-[#15803d] disabled:from-[#2a2a2a] disabled:to-[#3a3a3a] disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-[#f5c842]"
+              className="w-full py-3 px-4 bg-gradient-to-r from-[#3a8f4d] to-[#7cb342] hover:from-[#7cb342] hover:to-[#3a8f4d] disabled:from-[#2a2a2a] disabled:to-[#3a3a3a] disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-[#f5c842]"
             >
               {loading ? 'Updating…' : 'Update password'}
             </button>
@@ -127,7 +127,7 @@ export default function ResetPasswordPage() {
           )}
 
           {message && (
-            <div className="rounded-lg p-4 text-center bg-[#22c55e]/15 border border-[#22c55e]/40 text-[#22c55e]">
+            <div className="rounded-lg p-4 text-center bg-[#7cb342]/15 border border-[#7cb342]/40 text-[#7cb342]">
               <p className="font-medium">{message}</p>
             </div>
           )}

@@ -26,6 +26,20 @@ export interface UploadedCoursePdf {
   size: number
 }
 
+/** Uploads a profile photo. */
+export function useUploadAvatar() {
+  return useMutation({
+    mutationFn: async (file: File): Promise<{ url: string; fileName: string; size: number }> => {
+      const formData = new FormData()
+      formData.append('file', file)
+      return api.upload<{ url: string; fileName: string; size: number }>(
+        '/uploads/avatar',
+        formData,
+      )
+    },
+  })
+}
+
 /** Uploads a course outline PDF. */
 export function useUploadCoursePdf() {
   return useMutation({

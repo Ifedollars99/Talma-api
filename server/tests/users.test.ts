@@ -9,12 +9,44 @@ describe('Profile and authorisation', () => {
     const response = await request(app)
       .patch('/api/users/me')
       .set('Authorization', `Bearer ${user.accessToken}`)
-      .send({ username: 'RenamedUser', region: 'Ghana', language: 'French' })
+      .send({
+        username: 'RenamedUser',
+        region: 'Ghana',
+        state: 'Greater Accra',
+        language: 'French',
+        bio: 'I teach introductory programming.',
+        gender: 'female',
+        avatarUrl: 'https://cdn.example.com/avatars/renamed-user.png',
+      })
       .expect(200)
 
     expect(response.body.user.username).toBe('RenamedUser')
     expect(response.body.user.region).toBe('Ghana')
+    expect(response.body.user.state).toBe('Greater Accra')
     expect(response.body.user.language).toBe('French')
+    expect(response.body.user.bio).toBe('I teach introductory programming.')
+    expect(response.body.user.gender).toBe('female')
+    expect(response.body.user.avatarUrl).toBe(
+      'https://cdn.example.com/avatars/renamed-user.png',
+    )
+  })
+
+  it('shows a private profile only to its owner', async () => {
+    const user = await registerUser({ username: 'PrivateProfile' })
+
+    await request(app)
+      .patch('/api/users/me')
+      .set('Authorization', `Bearer ${user.accessToken}`)
+      .send({ privacyPublic: false, state: 'Lagos' })
+      .expect(200)
+
+    const ownerView = await request(app)
+      .get('/api/users/PrivateProfile')
+      .set('Authorization', `Bearer ${user.accessToken}`)
+      .expect(200)
+    expect(ownerView.body.user.state).toBe('Lagos')
+
+    await request(app).get('/api/users/PrivateProfile').expect(404)
   })
 
   it('rejects an invalid username', async () => {

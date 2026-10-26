@@ -106,8 +106,9 @@ export async function forgotPassword(req: Request, res: Response): Promise<void>
   const result = await authService.requestPasswordReset(body.email)
 
   res.json({
-    message: 'If an account exists for that email, a reset link has been generated.',
-    ...(result.resetToken ? { resetToken: result.resetToken } : {}),
+    message: 'If an account exists for that email, a reset link has been sent.',
+    // Development/testing only: keep the flow testable without a mail provider.
+    ...(!env.isProduction && result.resetToken ? { resetToken: result.resetToken } : {}),
   })
 }
 

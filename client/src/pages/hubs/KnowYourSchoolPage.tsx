@@ -75,8 +75,8 @@ const SECTIONS: SchoolSection[] = [
     title: 'Departments & Courses',
     desc: 'Your department board is your real homepage.',
     icon: 'bi-diagram-3',
-    bg: 'from-[#e6f6ea] to-[#dcfce7]',
-    iconColor: 'text-[#15803d]',
+    bg: 'from-[#edf4dc] to-[#e8f2d4]',
+    iconColor: 'text-[#3a8f4d]',
     items: [
       'Each faculty lists its departments and degree options on the portal',
       'Check course outlines, advisers and class reps per department',
@@ -114,8 +114,8 @@ const SECTIONS: SchoolSection[] = [
     title: 'Clubs & Student Associations',
     desc: 'Build skills and networks outside lectures.',
     icon: 'bi-trophy',
-    bg: 'from-[#e6f6ea] to-[#dcfce7]',
-    iconColor: 'text-[#15803d]',
+    bg: 'from-[#edf4dc] to-[#e8f2d4]',
+    iconColor: 'text-[#3a8f4d]',
     items: [
       'SUG, faculty and departmental associations',
       'JETS, press clubs, drama, choir, sports teams, tech communities',
@@ -349,8 +349,8 @@ export default function KnowYourSchoolPage() {
         {/* Campus map: worldwide satellite + streets, campus picker on top */}
         <div className="bg-white border border-[#e6e9e6] rounded-2xl overflow-hidden shadow-sm mb-4 lg:mb-6">
           <div className="p-5 lg:p-8 border-b border-[#e6e9e6] flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#e6f6ea] to-[#dcfce7] flex items-center justify-center flex-shrink-0">
-              <i className="bi bi-geo-alt text-2xl text-[#15803d]" />
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#edf4dc] to-[#e8f2d4] flex items-center justify-center flex-shrink-0">
+              <i className="bi bi-geo-alt text-2xl text-[#3a8f4d]" />
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold text-lg lg:text-xl text-[#0a0a0a]">

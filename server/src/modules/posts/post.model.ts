@@ -7,11 +7,17 @@ export interface PostDocument {
   author: mongoose.Types.ObjectId
   /** Denormalised author name — keeps the feed fast and renders like the original UI. */
   authorName: string
-  /** Denormalised author role ('student' | 'lecturer' | 'admin'). */
-  authorRole: 'student' | 'lecturer' | 'admin'
+  /** Denormalised username so every post can link to its author's page. */
+  authorUsername?: string
+  /** Denormalised profile photo so feed avatars stay in sync with the author. */
+  authorAvatarUrl?: string
+  /** Denormalised author role ('user' | 'creator' | 'student' | 'lecturer' | 'admin'). */
+  authorRole: 'user' | 'creator' | 'student' | 'lecturer' | 'admin'
   content: string
   /** Optional subject / course tag used by the composer. */
   subject?: string
+  /** Optional class level (Primary 1 … University 600 Level). */
+  classLevel?: string
   mediaType: PostMediaType
   mediaUrl?: string
   likeCount: number
@@ -26,13 +32,16 @@ const postSchema = new Schema<PostDocument>(
   {
     author: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     authorName: { type: String, required: true },
+    authorUsername: { type: String, trim: true, index: true },
+    authorAvatarUrl: { type: String, trim: true, maxlength: 500 },
     authorRole: {
       type: String,
-      enum: ['student', 'lecturer', 'admin'] as const,
+      enum: ['user', 'creator', 'student', 'lecturer', 'admin'] as const,
       default: 'student',
     },
     content: { type: String, required: true, maxlength: 5000 },
     subject: { type: String, maxlength: 120 },
+    classLevel: { type: String, maxlength: 120 },
     mediaType: {
       type: String,
       enum: ['none', 'image', 'video'] as const,
@@ -49,15 +58,19 @@ const postSchema = new Schema<PostDocument>(
 postSchema.index({ createdAt: -1 })
 postSchema.index({ authorRole: 1, createdAt: -1 })
 postSchema.index({ subject: 1, createdAt: -1 })
+postSchema.index({ classLevel: 1, createdAt: -1 })
 
 /** Shape returned to the client for a single post. */
 export interface PostDto {
   id: string
   authorId: string
   author: string
-  authorRole: 'student' | 'lecturer' | 'admin'
+  authorUsername?: string
+  authorAvatarUrl?: string
+  authorRole: 'user' | 'creator' | 'student' | 'lecturer' | 'admin'
   content: string
   subject?: string
+  classLevel?: string
   mediaType: PostMediaType
   mediaUrl?: string
   likes: number
@@ -75,9 +88,12 @@ export function toPostDto(
     id: String(post._id),
     authorId: String(post.author),
     author: post.authorName,
+    ...(post.authorUsername ? { authorUsername: post.authorUsername } : {}),
+    ...(post.authorAvatarUrl ? { authorAvatarUrl: post.authorAvatarUrl } : {}),
     authorRole: post.authorRole,
     content: post.content,
     ...(post.subject ? { subject: post.subject } : {}),
+    ...(post.classLevel ? { classLevel: post.classLevel } : {}),
     mediaType: post.mediaType,
     ...(post.mediaUrl ? { mediaUrl: post.mediaUrl } : {}),
     likes: post.likeCount,

@@ -51,6 +51,21 @@ export class AppError extends Error {
     return new AppError(429, 'TOO_MANY_REQUESTS', message)
   }
 
+  /** The request is valid, but the caller has not paid for the resource yet. */
+  static paymentRequired(message = 'Payment required'): AppError {
+    return new AppError(402, 'PAYMENT_REQUIRED', message)
+  }
+
+  /** An upstream provider (for example Paystack) is not available. */
+  static badGateway(message = 'An upstream service is unavailable'): AppError {
+    return new AppError(502, 'BAD_GATEWAY', message)
+  }
+
+  /** A required integration has not been configured on this deployment. */
+  static serviceUnavailable(message = 'This service is not available right now'): AppError {
+    return new AppError(503, 'SERVICE_UNAVAILABLE', message)
+  }
+
   static internal(message = 'Something went wrong'): AppError {
     return new AppError(500, 'INTERNAL_ERROR', message)
   }

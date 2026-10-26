@@ -14,9 +14,11 @@ export const uploadRoot = path.resolve(currentDir, '../../../', env.UPLOAD_DIR)
 export const COURSE_PDF_DIR = 'courses'
 /** Sub-folder used for post media (images and videos). */
 export const POST_MEDIA_DIR = 'post-media'
+/** Sub-folder used for profile photos. */
+export const AVATAR_DIR = 'avatars'
 
 export function ensureUploadDirs(): void {
-  for (const dir of [COURSE_PDF_DIR, POST_MEDIA_DIR]) {
+  for (const dir of [COURSE_PDF_DIR, POST_MEDIA_DIR, AVATAR_DIR]) {
     fs.mkdir(path.join(uploadRoot, dir), { recursive: true }).catch(() => undefined)
   }
 }
@@ -49,6 +51,8 @@ export interface UploaderOptions {
   allowedTypes?: readonly string[]
   /** Message returned when the file type is rejected. */
   unsupportedMessage?: string
+  /** Optional per-upload size limit (megabytes). */
+  maxFileSizeMb?: number
 }
 
 export function createUploader(folder: string, options: UploaderOptions = {}) {
@@ -67,7 +71,7 @@ export function createUploader(folder: string, options: UploaderOptions = {}) {
 
   return multer({
     storage,
-    limits: { fileSize: env.UPLOAD_MAX_MB * 1024 * 1024 },
+    limits: { fileSize: (options.maxFileSizeMb ?? env.UPLOAD_MAX_MB) * 1024 * 1024 },
     fileFilter: (_req, file, cb) => {
       if (!allowedTypes.includes(file.mimetype)) {
         cb(

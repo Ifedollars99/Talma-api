@@ -66,8 +66,8 @@ export const siwesCategories: HubCategory[] = [
     "title": "ITF forms & supervisor information",
     "desc": "The paperwork that proves you trained.",
     "icon": "bi-file-earmark-text",
-    "bg": "from-[#e6f6ea] to-[#dcfce7]",
-    "iconColor": "text-[#15803d]",
+    "bg": "from-[#edf4dc] to-[#e8f2d4]",
+    "iconColor": "text-[#3a8f4d]",
     "source": "ITF forms issued via OOU SIWES unit.",
     "items": [
       {

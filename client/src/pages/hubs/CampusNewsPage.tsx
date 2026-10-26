@@ -54,28 +54,28 @@ export default function CampusNewsPage() {
             </p>
             <ul className="text-sm text-[#4d554d] space-y-2.5 leading-relaxed">
               <li>
-                <i className="bi bi-patch-check text-[#15803d] mr-2" />
+                <i className="bi bi-patch-check text-[#3a8f4d] mr-2" />
                 JAMB CAPS: accept admission on{' '}
                 <span className="font-medium text-[#0a0a0a]">caps.jamb.gov.ng</span> or risk losing
                 the slot.
               </li>
               <li>
-                <i className="bi bi-bank text-[#15803d] mr-2" />
+                <i className="bi bi-bank text-[#3a8f4d] mr-2" />
                 NELFUND student loan: check eligibility and application windows on the official
                 NELFUND portal.
               </li>
               <li>
-                <i className="bi bi-award text-[#15803d] mr-2" />
+                <i className="bi bi-award text-[#3a8f4d] mr-2" />
                 Scholarships: PTDF, MTN Foundation, NNPC/TotalEnergies, state bursaries — watch
                 eligibility (CGPA, level, indigene status).
               </li>
               <li>
-                <i className="bi bi-person-badge text-[#15803d] mr-2" />
+                <i className="bi bi-person-badge text-[#3a8f4d] mr-2" />
                 NYSC: JAMB regularisation, correct name/DOB on certificates, and Senate-list
                 appearance are required for mobilisation.
               </li>
               <li>
-                <i className="bi bi-file-earmark-text text-[#15803d] mr-2" />
+                <i className="bi bi-file-earmark-text text-[#3a8f4d] mr-2" />
                 WAEC/NECO O'level: keep original result checker cards and ensure 5-credit
                 requirements for your course.
               </li>

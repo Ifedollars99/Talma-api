@@ -13,7 +13,12 @@
     "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\"",
     "test": "vitest run",
     "test:watch": "vitest",
-    "seed": "tsx src/database/seed.ts"
+    "seed": "tsx src/database/seed.ts",
+    "make:admin": "tsx src/database/makeAdmin.ts",
+    "email:setup": "tsx src/database/emailSetup.ts",
+    "email:test": "tsx src/database/emailTest.ts",
+    "email:preview": "tsx src/database/emailPreview.ts",
+    "youtube:auth": "tsx src/database/youtubeAuth.ts"
   },
   "dependencies": {
     "argon2": "^0.41.1",
@@ -26,8 +31,10 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.9.5",
     "multer": "^2.0.2",
+    "nodemailer": "^10.2.1",
     "pino": "^9.6.0",
     "pino-http": "^10.4.0",
+    "resend": "^6.34.1",
     "zod": "^3.24.1"
   },
   "devDependencies": {
@@ -38,6 +45,7 @@
     "@types/jsonwebtoken": "^9.0.7",
     "@types/multer": "^2.0.0",
     "@types/node": "^22.10.7",
+    "@types/nodemailer": "^8.0.2",
     "@types/supertest": "^6.0.2",
     "@vitest/coverage-v8": "^3.2.4",
     "eslint": "^9.18.0",

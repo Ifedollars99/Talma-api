@@ -203,8 +203,8 @@ export default function TestView() {
                 className="bg-white rounded-xl border border-[#e6e9e6] p-5 cursor-pointer hover:border-[#f5c842] transition-colors text-left disabled:opacity-60"
               >
                 <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-[#e6f6ea] rounded-lg flex items-center justify-center flex-shrink-0">
-                    <i className="bi bi-journal-bookmark text-[#15803d] text-xl" />
+                  <div className="w-12 h-12 bg-[#edf4dc] rounded-lg flex items-center justify-center flex-shrink-0">
+                    <i className="bi bi-journal-bookmark text-[#3a8f4d] text-xl" />
                   </div>
                   <div>
                     <h4 className="font-semibold text-[#0a0a0a] text-base">{department.name}</h4>
@@ -292,8 +292,8 @@ export default function TestView() {
       {step === 'result' && (
         <div className="space-y-6">
           <div className="bg-white rounded-xl border border-[#e6e9e6] p-8 text-center">
-            <div className="w-16 h-16 bg-[#e6f6ea] rounded-full flex items-center justify-center mx-auto mb-4">
-              <i className="bi bi-check-circle text-[#15803d] text-3xl" />
+            <div className="w-16 h-16 bg-[#edf4dc] rounded-full flex items-center justify-center mx-auto mb-4">
+              <i className="bi bi-check-circle text-[#3a8f4d] text-3xl" />
             </div>
             <h3 className="font-heading text-2xl font-semibold text-[#0a0a0a] mb-2">
               Test Submitted!

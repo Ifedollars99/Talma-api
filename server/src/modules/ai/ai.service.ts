@@ -92,7 +92,7 @@ export async function streamChat(input: ChatInput, res: Response): Promise<void>
     throw new AppError(
       503,
       'AI_NOT_CONFIGURED',
-      'The Talma AI assistant is not connected yet. Add OPENAI_API_KEY to the server environment.',
+      'LINT is not connected yet. Add OPENAI_API_KEY to the server environment.',
     )
   }
 

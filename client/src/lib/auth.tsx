@@ -20,12 +20,25 @@ export interface AuthContextValue {
     username: string
     email: string
     password: string
-    role: 'student' | 'lecturer'
+    role: 'user' | 'creator'
   }) => Promise<User>
   logout: () => Promise<void>
   updateProfile: (changes: Partial<
-    Pick<User, 'username' | 'region' | 'language' | 'timezone' | 'privacyPublic' | 'emailNotifications'>
+    Pick<
+      User,
+      | 'username'
+      | 'region'
+      | 'state'
+      | 'language'
+      | 'timezone'
+      | 'bio'
+      | 'avatarUrl'
+      | 'gender'
+      | 'privacyPublic'
+      | 'emailNotifications'
+    >
   >) => Promise<User>
+  refreshUser: () => Promise<User | null>
   deleteAccount: () => Promise<void>
 }
 
@@ -100,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       username: string
       email: string
       password: string
-      role: 'student' | 'lecturer'
+      role: 'user' | 'creator'
     }) => {
       const data = await api.post<AuthResponse>('/auth/register', input)
       session.set(data.accessToken)
@@ -128,7 +141,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       changes: Partial<
         Pick<
           User,
-          'username' | 'region' | 'language' | 'timezone' | 'privacyPublic' | 'emailNotifications'
+          | 'username'
+          | 'region'
+          | 'state'
+          | 'language'
+          | 'timezone'
+          | 'bio'
+          | 'avatarUrl'
+          | 'gender'
+          | 'privacyPublic'
+          | 'emailNotifications'
         >
       >,
     ) => {
@@ -138,6 +160,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     [],
   )
+
+  /** Re-reads the signed-in user (used after creator verification). */
+  const refreshUser = useCallback(async () => {
+    try {
+      const data = await api.get<{ user: User }>('/auth/me')
+      setUser(data.user)
+      return data.user
+    } catch {
+      return null
+    }
+  }, [])
 
   const deleteAccount = useCallback(async () => {
     await api.delete('/users/me')
@@ -154,9 +187,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       logout,
       updateProfile,
+      refreshUser,
       deleteAccount,
     }),
-    [user, isLoading, login, register, logout, updateProfile, deleteAccount],
+    [user, isLoading, login, register, logout, updateProfile, refreshUser, deleteAccount],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

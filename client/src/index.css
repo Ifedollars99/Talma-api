@@ -15,8 +15,8 @@ body {
 
 /* Design tokens — Talma landing palette: Green, Gold, Black & White. */
 :root {
-  --green: #15803d;
-  --green-bright: #22c55e;
+  --green: #3a8f4d;
+  --green-bright: #7cb342;
   --gold: #f5c842;
   --gold-bright: #ffd166;
   --ink: #0a0a0a;
@@ -84,7 +84,7 @@ html {
 .talma-app input:focus-visible,
 .talma-app textarea:focus-visible,
 .talma-app select:focus-visible {
-  outline: 2px solid #15803d;
+  outline: 2px solid #3a8f4d;
   outline-offset: 2px;
 }
 

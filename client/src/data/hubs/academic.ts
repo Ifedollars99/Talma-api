@@ -34,8 +34,8 @@ export const academicCategories: HubCategory[] = [
     "title": "Past questions & exam information",
     "desc": "OOU lecturers repeat patterns — past questions reveal them.",
     "icon": "bi-file-earmark-text",
-    "bg": "from-[#e6f6ea] to-[#dcfce7]",
-    "iconColor": "text-[#15803d]",
+    "bg": "from-[#edf4dc] to-[#e8f2d4]",
+    "iconColor": "text-[#3a8f4d]",
     "items": [
       {
         "title": "Past questions",

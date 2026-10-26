@@ -61,3 +61,35 @@ describe('Post media uploads', () => {
       .expect(400)
   })
 })
+
+describe('Profile photo uploads', () => {
+  it('requires authentication', async () => {
+    await request(app)
+      .post('/api/uploads/avatar')
+      .attach('file', SAMPLE, { filename: 'avatar.png', contentType: 'image/png' })
+      .expect(401)
+  })
+
+  it('accepts an image', async () => {
+    const { accessToken } = await registerUser()
+
+    const response = await request(app)
+      .post('/api/uploads/avatar')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .attach('file', SAMPLE, { filename: 'avatar.webp', contentType: 'image/webp' })
+      .expect(201)
+
+    expect(response.body.url).toContain('/uploads/avatars/')
+    expect(response.body.size).toBe(SAMPLE.length)
+  })
+
+  it('rejects a video as a profile photo', async () => {
+    const { accessToken } = await registerUser()
+
+    await request(app)
+      .post('/api/uploads/avatar')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .attach('file', SAMPLE, { filename: 'clip.mp4', contentType: 'video/mp4' })
+      .expect(400)
+  })
+})

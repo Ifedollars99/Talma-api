@@ -88,7 +88,7 @@ export default function SignInPage() {
         <div className="bg-black/40 backdrop-blur-xl border border-[#f5c842]/25 rounded-3xl shadow-2xl p-8 space-y-8">
           {/* Header */}
           <div className="text-center space-y-2">
-            <div className="w-16 h-16 bg-gradient-to-r from-[#15803d] to-[#22c55e] rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+            <div className="w-16 h-16 bg-gradient-to-r from-[#3a8f4d] to-[#7cb342] rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
               <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
@@ -234,7 +234,7 @@ export default function SignInPage() {
             <button
               type="submit"
               disabled={loading || !isFormValid}
-              className="w-full py-3 px-4 bg-gradient-to-r from-[#15803d] to-[#22c55e] hover:from-[#22c55e] hover:to-[#15803d] disabled:from-[#2a2a2a] disabled:to-[#3a3a3a] disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-[#f5c842] focus:ring-offset-2 focus:ring-offset-transparent"
+              className="w-full py-3 px-4 bg-gradient-to-r from-[#3a8f4d] to-[#7cb342] hover:from-[#7cb342] hover:to-[#3a8f4d] disabled:from-[#2a2a2a] disabled:to-[#3a3a3a] disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-[#f5c842] focus:ring-offset-2 focus:ring-offset-transparent"
             >
               {loading ? (
                 <span className="flex items-center justify-center">
@@ -264,13 +264,13 @@ export default function SignInPage() {
               role="status"
               className={`rounded-lg p-4 text-center transition-all duration-300 ${
                 messageType === 'success'
-                  ? 'bg-[#22c55e]/15 border border-[#22c55e]/40 text-[#22c55e]'
+                  ? 'bg-[#7cb342]/15 border border-[#7cb342]/40 text-[#7cb342]'
                   : 'bg-[#f5c842]/15 border border-[#f5c842]/40 text-[#ffd166]'
               }`}
             >
               <div className="flex items-center justify-center space-x-2">
                 {messageType === 'success' ? (
-                  <svg className="h-5 w-5 text-[#22c55e]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="h-5 w-5 text-[#7cb342]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -290,6 +290,15 @@ export default function SignInPage() {
                 )}
                 <p className="font-medium">{message}</p>
               </div>
+              {messageType === 'error' && message.toLowerCase().includes('incorrect') && (
+                <p className="mt-2 text-sm text-white/75">
+                  Check the exact email you signed up with, or{' '}
+                  <Link to="/forgot-password" className="font-semibold underline">
+                    reset your password
+                  </Link>
+                  .
+                </p>
+              )}
             </div>
           )}
 

@@ -1,6 +1,7 @@
 import mongoose from 'mongoose'
 import { AppError } from '../../common/errors/AppError.js'
 import { paginate, toSkip, type Paginated } from '../../common/utils/pagination.js'
+import { FollowModel } from '../users/follow.model.js'
 import { UserModel } from '../users/user.model.js'
 import { PostModel, toPostDto, type PostDto } from './post.model.js'
 import { ReactionModel } from './reaction.model.js'
@@ -11,7 +12,7 @@ export async function createPost(
   authorId: string,
   input: CreatePostInput,
 ): Promise<PostDto> {
-  const author = await UserModel.findById(authorId).select('username role').lean()
+  const author = await UserModel.findById(authorId).select('username avatarUrl role').lean()
   if (!author) {
     throw AppError.notFound('Account not found')
   }
@@ -19,9 +20,12 @@ export async function createPost(
   const post = await PostModel.create({
     author: author._id,
     authorName: author.username,
+    authorUsername: author.username,
+    ...(author.avatarUrl ? { authorAvatarUrl: author.avatarUrl } : {}),
     authorRole: author.role,
     content: input.content,
     ...(input.subject ? { subject: input.subject } : {}),
+    ...(input.classLevel ? { classLevel: input.classLevel } : {}),
     mediaType: input.mediaType,
     ...(input.mediaUrl ? { mediaUrl: input.mediaUrl } : {}),
   })
@@ -33,8 +37,9 @@ export async function createPost(
  * Returns a page of posts for the requested feed.
  *
  * - `foryou`    → every post, newest first.
- * - `following` → posts written by lecturers (the original "Following" tab).
- * - `discover`  → every post, optionally narrowed by a free-text search.
+ * - `following` → posts written by the accounts the viewer follows.
+ *
+ * Both feeds can be narrowed by an optional free-text `search`.
  */
 export async function listPosts(
   query: FeedQuery,
@@ -43,13 +48,10 @@ export async function listPosts(
   const filter: mongoose.FilterQuery<Record<string, unknown>> = {}
 
   if (query.feed === 'following') {
-    filter.authorRole = 'lecturer'
-    // The original "Following" tab fell back to the whole feed when no
-    // lecturer had posted yet.
-    const lecturerCount = await PostModel.countDocuments({ authorRole: 'lecturer' })
-    if (lecturerCount === 0) {
-      delete filter.authorRole
-    }
+    const followingIds = viewerId
+      ? await FollowModel.find({ follower: viewerId }).distinct('following')
+      : []
+    filter.author = { $in: followingIds }
   }
 
   if (query.search) {
@@ -59,6 +61,7 @@ export async function listPosts(
       { content: pattern },
       { authorName: pattern },
       { subject: pattern },
+      { classLevel: pattern },
     ]
   }
 

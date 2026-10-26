@@ -1,28 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../lib/auth'
 import { ApiError } from '../../lib/apiClient'
+import { roleLabel } from '../../lib/roleLabel'
+import { profileKeys } from '../../hooks/useProfile'
+import { postKeys } from '../../hooks/usePosts'
+import {
+  COUNTRIES,
+  GENDER_OPTIONS,
+  LANGUAGES,
+  NIGERIAN_STATES,
+  TIMEZONES,
+} from '../../lib/profileOptions'
+import Avatar from './Avatar'
+import AvatarUploader from './AvatarUploader'
+import ThemeSelector from '../settings/ThemeSelector'
 import Modal from '../ui/Modal'
 
-type SettingsTab = 'account' | 'region' | 'privacy'
-
-const REGIONS = [
-  'Nigeria',
-  'Ghana',
-  'Kenya',
-  'United Kingdom',
-  'United States',
-  'Canada',
-]
-
-const LANGUAGES = ['English', 'French', 'Yoruba', 'Hausa', 'Igbo']
-
-const TIMEZONES = [
-  'Africa/Lagos (WAT)',
-  'Africa/Accra (GMT)',
-  'Europe/London (GMT)',
-  'America/New_York (EST)',
-]
+type SettingsTab = 'account' | 'region' | 'appearance' | 'privacy'
 
 /**
  * Profile avatar button with its dropdown and the settings modal — a direct
@@ -31,6 +27,7 @@ const TIMEZONES = [
 export default function ProfileMenu() {
   const { user, logout, updateProfile, deleteAccount } = useAuth()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   const rootRef = useRef<HTMLDivElement>(null)
   const hoverTimer = useRef<number | null>(null)
@@ -41,26 +38,35 @@ export default function ProfileMenu() {
   const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [saveMsg, setSaveMsg] = useState('')
-  const [regionMsg, setRegionMsg] = useState('')
+  const [saveMsg, setSaveMsg] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null)
+  const [regionMsg, setRegionMsg] = useState<{ tone: 'ok' | 'error'; text: string } | null>(
+    null,
+  )
 
   const username = user?.username ?? 'Student'
   const email = user?.email ?? ''
-  const userRole = user?.role ?? 'student'
-  const initial = username ? username.charAt(0).toUpperCase() : 'S'
+  const userRole = roleLabel(user?.role)
 
   const [editableUsername, setEditableUsername] = useState(username)
   const [region, setRegion] = useState(user?.region ?? 'Nigeria')
+  const [stateName, setStateName] = useState(user?.state ?? '')
   const [language, setLanguage] = useState(user?.language ?? 'English')
   const [timezone, setTimezone] = useState(user?.timezone ?? 'Africa/Lagos (WAT)')
+  const [bio, setBio] = useState(user?.bio ?? '')
+  const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl ?? '')
+  const [gender, setGender] = useState<'male' | 'female' | ''>(user?.gender ?? '')
   const [privacyPublic, setPrivacyPublic] = useState(user?.privacyPublic ?? true)
   const [privacyEmail, setPrivacyEmail] = useState(user?.emailNotifications ?? true)
 
   useEffect(() => {
     setEditableUsername(user?.username ?? 'Student')
     setRegion(user?.region ?? 'Nigeria')
+    setStateName(user?.state ?? '')
     setLanguage(user?.language ?? 'English')
     setTimezone(user?.timezone ?? 'Africa/Lagos (WAT)')
+    setBio(user?.bio ?? '')
+    setAvatarUrl(user?.avatarUrl ?? '')
+    setGender(user?.gender ?? '')
     setPrivacyPublic(user?.privacyPublic ?? true)
     setPrivacyEmail(user?.emailNotifications ?? true)
   }, [user])
@@ -100,10 +106,33 @@ export default function ProfileMenu() {
     }, 180)
   }
 
+  /** Discards an unsaved draft so closing the modal never leaks a new avatar. */
+  const resetDraft = () => {
+    setEditableUsername(user?.username ?? 'Student')
+    setRegion(user?.region ?? 'Nigeria')
+    setStateName(user?.state ?? '')
+    setLanguage(user?.language ?? 'English')
+    setTimezone(user?.timezone ?? 'Africa/Lagos (WAT)')
+    setBio(user?.bio ?? '')
+    setAvatarUrl(user?.avatarUrl ?? '')
+    setGender(user?.gender ?? '')
+    setPrivacyPublic(user?.privacyPublic ?? true)
+    setPrivacyEmail(user?.emailNotifications ?? true)
+    setSaveMsg(null)
+    setRegionMsg(null)
+  }
+
   const openSettings = (tab: SettingsTab) => {
+    resetDraft()
     setSettingsTab(tab)
     setSettingsOpen(true)
     setMenuOpen(false)
+  }
+
+  const closeSettings = () => {
+    setSettingsOpen(false)
+    setConfirmDeleteAccount(false)
+    resetDraft()
   }
 
   const handleSignOut = async () => {
@@ -113,36 +142,69 @@ export default function ProfileMenu() {
   }
 
   const saveAccount = async () => {
-    setSaveMsg('')
+    setSaveMsg(null)
     setSaving(true)
     try {
       const name = editableUsername.trim()
       if (name.length < 3) {
-        setSaveMsg('Username must be at least 3 characters.')
+        setSaveMsg({ tone: 'error', text: 'Username must be at least 3 characters.' })
         return
       }
       await updateProfile({
         username: name,
         region,
+        state: stateName.trim(),
         language,
         timezone,
+        bio: bio.trim(),
+        avatarUrl,
+        ...(gender ? { gender } : {}),
         privacyPublic,
         emailNotifications: privacyEmail,
       })
-      setSaveMsg('Account updated.')
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: profileKeys.all }),
+        queryClient.invalidateQueries({ queryKey: postKeys.all }),
+      ])
+      setSaveMsg({ tone: 'ok', text: 'Account updated.' })
     } catch (error) {
-      setSaveMsg(error instanceof ApiError ? error.message : 'Could not save.')
+      setSaveMsg({
+        tone: 'error',
+        text: error instanceof ApiError ? error.message : 'Could not save.',
+      })
     } finally {
       setSaving(false)
     }
   }
 
   const saveRegion = async () => {
+    setRegionMsg(null)
     try {
-      await updateProfile({ region, language, timezone })
-      setRegionMsg('Region saved.')
+      await updateProfile({ region, state: stateName.trim(), language, timezone })
+      await queryClient.invalidateQueries({ queryKey: profileKeys.all })
+      setRegionMsg({ tone: 'ok', text: 'Region saved.' })
     } catch (error) {
-      setRegionMsg(error instanceof ApiError ? error.message : 'Could not save.')
+      setRegionMsg({
+        tone: 'error',
+        text: error instanceof ApiError ? error.message : 'Could not save.',
+      })
+    }
+  }
+
+  const savePrivacy = async () => {
+    setSaveMsg(null)
+    setSaving(true)
+    try {
+      await updateProfile({ privacyPublic, emailNotifications: privacyEmail })
+      await queryClient.invalidateQueries({ queryKey: profileKeys.all })
+      setSaveMsg({ tone: 'ok', text: 'Privacy settings updated.' })
+    } catch (error) {
+      setSaveMsg({
+        tone: 'error',
+        text: error instanceof ApiError ? error.message : 'Could not save.',
+      })
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -165,9 +227,10 @@ export default function ProfileMenu() {
         type="button"
         onClick={() => setMenuOpen((open) => !open)}
         title="Profile"
-        className="w-10 h-10 bg-[#f5c842] rounded-full flex items-center justify-center hover:ring-2 hover:ring-white/40 transition-all"
+        aria-label="Open profile menu"
+        className="rounded-full transition-all hover:ring-2 hover:ring-white/40"
       >
-        <span className="text-[#0a0a0a] text-base font-semibold">{initial}</span>
+        <Avatar src={avatarUrl} name={username} size="sm" />
       </button>
 
       {/* Dropdown menu */}
@@ -176,9 +239,7 @@ export default function ProfileMenu() {
           {/* Profile summary */}
           <div className="px-4 pt-4 pb-3 border-b border-[#e6e9e6]">
             <div className="flex items-center space-x-3">
-              <div className="w-11 h-11 bg-[#f5c842] rounded-full flex items-center justify-center flex-shrink-0">
-                <span className="text-[#0a0a0a] font-semibold">{initial}</span>
-              </div>
+              <Avatar src={avatarUrl} name={username} size="sm" />
               <div className="min-w-0">
                 <p className="font-semibold text-[#0a0a0a] truncate">{username}</p>
                 <p className="text-sm text-[#7b857b] truncate">{email}</p>
@@ -189,8 +250,31 @@ export default function ProfileMenu() {
             </div>
           </div>
 
-          {/* Menu items : lead to Settings */}
+          {/* Menu items : lead to the profile and Settings */}
           <div className="p-2">
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false)
+                navigate('/myprofile')
+              }}
+              className="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl hover:bg-[#f7f9f7] text-left transition-colors"
+            >
+              <i className="bi bi-person-circle text-lg text-[#4d554d]" />
+              <span className="text-[15px] text-[#0a0a0a] font-medium">View profile</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false)
+                navigate(`/u/${encodeURIComponent(username)}`)
+              }}
+              className="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl hover:bg-[#f7f9f7] text-left transition-colors"
+            >
+              <i className="bi bi-box-arrow-up-right text-lg text-[#4d554d]" />
+              <span className="text-[15px] text-[#0a0a0a]">Public profile</span>
+            </button>
+            <div className="my-1 border-t border-[#e6e9e6]" />
             <button
               type="button"
               onClick={() => openSettings('account')}
@@ -202,11 +286,11 @@ export default function ProfileMenu() {
             </button>
             <button
               type="button"
-              onClick={() => openSettings('account')}
+              onClick={() => openSettings('appearance')}
               className="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl hover:bg-[#f7f9f7] text-left transition-colors"
             >
-              <i className="bi bi-person-gear text-lg text-[#4d554d]" />
-              <span className="text-[15px] text-[#0a0a0a]">Account settings</span>
+              <i className="bi bi-palette text-lg text-[#4d554d]" />
+              <span className="text-[15px] text-[#0a0a0a]">Appearance</span>
             </button>
             <button
               type="button"
@@ -243,14 +327,14 @@ export default function ProfileMenu() {
       {/* Settings modal */}
       <Modal
         open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
+        onClose={closeSettings}
         className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col"
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#e6e9e6]">
           <h3 className="font-semibold text-lg text-[#0a0a0a]">Settings</h3>
           <button
             type="button"
-            onClick={() => setSettingsOpen(false)}
+            onClick={closeSettings}
             aria-label="Close settings"
             className="w-9 h-9 rounded-full hover:bg-[#f7f9f7] flex items-center justify-center text-[#4d554d]"
           >
@@ -264,6 +348,7 @@ export default function ProfileMenu() {
               [
                 { id: 'account', label: 'Account' },
                 { id: 'region', label: 'Region & language' },
+                { id: 'appearance', label: 'Appearance' },
                 { id: 'privacy', label: 'Privacy' },
               ] as { id: SettingsTab; label: string }[]
             ).map((tab) => (
@@ -286,6 +371,14 @@ export default function ProfileMenu() {
           <div className="flex-1 p-5 space-y-5 overflow-y-auto">
             {settingsTab === 'account' && (
               <div className="space-y-4">
+                <div>
+                  <p className="block text-sm font-medium text-[#4d554d] mb-1.5">Profile photo</p>
+                  <AvatarUploader
+                    avatarUrl={avatarUrl}
+                    name={editableUsername || 'Student'}
+                    onChange={setAvatarUrl}
+                  />
+                </div>
                 <div>
                   <label htmlFor="settings-username" className="block text-sm font-medium text-[#4d554d] mb-1.5">
                     Username
@@ -322,6 +415,42 @@ export default function ProfileMenu() {
                     className="w-full px-4 py-2.5 border border-[#e6e9e6] rounded-xl bg-[#f7f9f7] text-[#7b857b] capitalize"
                   />
                 </div>
+                <div>
+                  <label htmlFor="menu-settings-bio" className="block text-sm font-medium text-[#4d554d] mb-1.5">
+                    Bio
+                  </label>
+                  <textarea
+                    id="menu-settings-bio"
+                    value={bio}
+                    onChange={(event) => setBio(event.target.value.slice(0, 500))}
+                    rows={3}
+                    placeholder="Tell the community about yourself."
+                    className="w-full px-4 py-2.5 border border-[#e6e9e6] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#f5c842] text-[#0a0a0a]"
+                  />
+                  <p className="mt-1 text-xs text-[#7b857b]">{bio.length}/500 characters</p>
+                </div>
+                <div>
+                  <label htmlFor="menu-settings-gender" className="block text-sm font-medium text-[#4d554d] mb-1.5">
+                    Gender
+                  </label>
+                  <select
+                    id="menu-settings-gender"
+                    value={gender}
+                    onChange={(event) =>
+                      setGender(event.target.value as 'male' | 'female' | '')
+                    }
+                    className="w-full px-4 py-2.5 border border-[#e6e9e6] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#f5c842] text-[#0a0a0a]"
+                  >
+                    <option value="" disabled>
+                      Select gender
+                    </option>
+                    {GENDER_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <button
                   type="button"
                   onClick={() => void saveAccount()}
@@ -330,7 +459,16 @@ export default function ProfileMenu() {
                 >
                   {saving ? 'Saving...' : 'Save changes'}
                 </button>
-                {saveMsg && <p className="text-sm text-[#15803d]">{saveMsg}</p>}
+                {saveMsg && (
+                  <p
+                    role="status"
+                    className={`text-sm font-medium ${
+                      saveMsg.tone === 'ok' ? 'text-[#3a8f4d]' : 'text-[#8a6d00]'
+                    }`}
+                  >
+                    {saveMsg.text}
+                  </p>
+                )}
 
                 <div className="border-t border-[#e6e9e6] pt-4">
                   <h4 className="font-semibold text-[#8a6d00] mb-1">Danger zone</h4>
@@ -352,7 +490,7 @@ export default function ProfileMenu() {
               <div className="space-y-4">
                 <div>
                   <label htmlFor="settings-region" className="block text-sm font-medium text-[#4d554d] mb-1.5">
-                    Country / Region
+                    Country
                   </label>
                   <select
                     id="settings-region"
@@ -360,10 +498,33 @@ export default function ProfileMenu() {
                     onChange={(event) => setRegion(event.target.value)}
                     className="w-full px-4 py-2.5 border border-[#e6e9e6] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#f5c842] text-[#0a0a0a]"
                   >
-                    {REGIONS.map((option) => (
-                      <option key={option}>{option}</option>
+                    {COUNTRIES.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
                     ))}
                   </select>
+                </div>
+                <div>
+                  <label htmlFor="settings-state" className="block text-sm font-medium text-[#4d554d] mb-1.5">
+                    State / region <span className="font-normal text-[#7b857b]">(optional)</span>
+                  </label>
+                  <input
+                    id="settings-state"
+                    value={stateName}
+                    onChange={(event) => setStateName(event.target.value.slice(0, 80))}
+                    type="text"
+                    list={region === 'Nigeria' ? 'menu-settings-nigerian-states' : undefined}
+                    placeholder={region === 'Nigeria' ? 'e.g. Lagos' : 'State or region'}
+                    className="w-full px-4 py-2.5 border border-[#e6e9e6] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#f5c842] text-[#0a0a0a]"
+                  />
+                  {region === 'Nigeria' && (
+                    <datalist id="menu-settings-nigerian-states">
+                      {NIGERIAN_STATES.map((stateValue) => (
+                        <option key={stateValue} value={stateValue} />
+                      ))}
+                    </datalist>
+                  )}
                 </div>
                 <div>
                   <label htmlFor="settings-language" className="block text-sm font-medium text-[#4d554d] mb-1.5">
@@ -402,7 +563,26 @@ export default function ProfileMenu() {
                 >
                   Save region
                 </button>
-                {regionMsg && <p className="text-sm text-[#15803d]">{regionMsg}</p>}
+                {regionMsg && (
+                  <p
+                    role="status"
+                    className={`text-sm font-medium ${
+                      regionMsg.tone === 'ok' ? 'text-[#3a8f4d]' : 'text-[#8a6d00]'
+                    }`}
+                  >
+                    {regionMsg.text}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {settingsTab === 'appearance' && (
+              <div>
+                <h4 className="mb-1 font-semibold text-[#0a0a0a]">Theme</h4>
+                <p className="mb-4 text-sm text-[#7b857b]">
+                  Choose how the Talma app looks on this device.
+                </p>
+                <ThemeSelector />
               </div>
             )}
 
@@ -427,6 +607,24 @@ export default function ProfileMenu() {
                   />
                 </label>
                 <p className="text-sm text-[#7b857b]">More privacy controls coming soon.</p>
+                <button
+                  type="button"
+                  onClick={() => void savePrivacy()}
+                  disabled={saving}
+                  className="px-5 py-2.5 bg-[#0a0a0a] text-white rounded-xl text-sm font-medium hover:bg-[#1a1a1a] disabled:opacity-50"
+                >
+                  {saving ? 'Saving...' : 'Save privacy'}
+                </button>
+                {saveMsg && (
+                  <p
+                    role="status"
+                    className={`text-sm font-medium ${
+                      saveMsg.tone === 'ok' ? 'text-[#3a8f4d]' : 'text-[#8a6d00]'
+                    }`}
+                  >
+                    {saveMsg.text}
+                  </p>
+                )}
               </div>
             )}
           </div>

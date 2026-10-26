@@ -1,27 +1,22 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../lib/auth'
 import { ApiError } from '../../lib/apiClient'
-
-const REGIONS = [
-  'Nigeria',
-  'Ghana',
-  'Kenya',
-  'South Africa',
-  'United Kingdom',
-  'United States',
-  'Canada',
-]
-
-const LANGUAGES = ['English', 'French', 'Yoruba', 'Hausa', 'Igbo']
-
-const TIMEZONES = [
-  'Africa/Lagos (WAT)',
-  'Africa/Accra (GMT)',
-  'Africa/Nairobi (EAT)',
-  'Europe/London (GMT)',
-  'America/New_York (EST)',
-]
+import { roleLabel } from '../../lib/roleLabel'
+import {
+  COUNTRIES,
+  GENDER_OPTIONS,
+  LANGUAGES,
+  NIGERIAN_STATES,
+  TIMEZONES,
+} from '../../lib/profileOptions'
+import { profileKeys } from '../../hooks/useProfile'
+import { postKeys } from '../../hooks/usePosts'
+import Avatar from '../profile/Avatar'
+import AvatarUploader from '../profile/AvatarUploader'
+import ThemeSelector from './ThemeSelector'
+import CreatorVerificationModal from '../videos/CreatorVerificationModal'
 
 function Toggle({
   checked,
@@ -40,7 +35,7 @@ function Toggle({
       aria-label={label}
       onClick={() => onChange(!checked)}
       className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
-        checked ? 'bg-[#15803d]' : 'bg-[#cbd2cb]'
+        checked ? 'bg-[#3a8f4d]' : 'bg-[#cbd2cb]'
       }`}
     >
       <span
@@ -55,22 +50,32 @@ function Toggle({
 export default function SettingsView() {
   const { user, updateProfile, logout, deleteAccount } = useAuth()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   const [username, setUsername] = useState(user?.username ?? '')
   const [region, setRegion] = useState(user?.region || 'Nigeria')
+  const [state, setState] = useState(user?.state ?? '')
   const [language, setLanguage] = useState(user?.language || 'English')
   const [timezone, setTimezone] = useState(user?.timezone || 'Africa/Lagos (WAT)')
+  const [bio, setBio] = useState(user?.bio ?? '')
+  const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl ?? '')
+  const [gender, setGender] = useState<'male' | 'female' | ''>(user?.gender ?? '')
   const [emailNotifications, setEmailNotifications] = useState(user?.emailNotifications ?? true)
   const [privacyPublic, setPrivacyPublic] = useState(user?.privacyPublic ?? false)
   const [saving, setSaving] = useState(false)
   const [status, setStatus] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null)
+  const [verifyOpen, setVerifyOpen] = useState(false)
 
   useEffect(() => {
     if (!user) return
     setUsername(user.username)
     setRegion(user.region || 'Nigeria')
+    setState(user.state ?? '')
     setLanguage(user.language || 'English')
     setTimezone(user.timezone || 'Africa/Lagos (WAT)')
+    setBio(user.bio ?? '')
+    setAvatarUrl(user.avatarUrl ?? '')
+    setGender(user.gender ?? '')
     setEmailNotifications(user.emailNotifications)
     setPrivacyPublic(user.privacyPublic)
   }, [user])
@@ -86,11 +91,19 @@ export default function SettingsView() {
       await updateProfile({
         username: username.trim(),
         region,
+        state: state.trim(),
         language,
         timezone,
+        bio: bio.trim(),
+        avatarUrl,
+        ...(gender ? { gender } : {}),
         emailNotifications,
         privacyPublic,
       })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: profileKeys.all }),
+        queryClient.invalidateQueries({ queryKey: postKeys.all }),
+      ])
       setStatus({ tone: 'ok', text: 'Your settings were saved.' })
     } catch (error) {
       setStatus({
@@ -120,9 +133,7 @@ export default function SettingsView() {
     }
   }
 
-  const initial = (user?.username ?? 'S').charAt(0).toUpperCase()
-  const roleLabel =
-    user?.role === 'lecturer' ? 'Lecturer' : user?.role === 'admin' ? 'Admin' : 'Student'
+  const roleLabelText = roleLabel(user?.role)
   const memberSince = user?.createdAt
     ? new Date(user.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     : '—'
@@ -149,7 +160,7 @@ export default function SettingsView() {
           type="button"
           onClick={() => void save()}
           disabled={saving}
-          className="rounded-xl bg-gradient-to-r from-[#15803d] to-[#22c55e] px-5 py-2.5 font-semibold text-white shadow-md transition-all hover:from-[#22c55e] hover:to-[#15803d] disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-xl bg-gradient-to-r from-[#3a8f4d] to-[#7cb342] px-5 py-2.5 font-semibold text-white shadow-md transition-all hover:from-[#7cb342] hover:to-[#3a8f4d] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving ? 'Saving…' : 'Save changes'}
         </button>
@@ -160,7 +171,7 @@ export default function SettingsView() {
           role="status"
           className={`rounded-xl border px-4 py-3 text-sm font-medium ${
             status.tone === 'ok'
-              ? 'border-[#22c55e]/40 bg-[#22c55e]/10 text-[#15803d]'
+              ? 'border-[#7cb342]/40 bg-[#7cb342]/10 text-[#3a8f4d]'
               : 'border-[#f5c842]/50 bg-[#fdf5d7] text-[#8a6d00]'
           }`}
         >
@@ -168,22 +179,39 @@ export default function SettingsView() {
         </div>
       )}
 
+      {/* Appearance */}
+      <section className={cardClass}>
+        <div className="mb-4">
+          <p className="font-heading text-xl text-[#0a0a0a]">Appearance</p>
+          <p className="text-sm text-[#4d554d]">
+            Pick the theme you want while using the Talma app.
+          </p>
+        </div>
+        <ThemeSelector />
+      </section>
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Profile */}
         <section className={cardClass}>
           <div className="mb-5 flex items-center gap-4">
-            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-[#0a0a0a] text-xl font-bold text-[#f5c842]">
-              {initial}
-            </div>
+            <Avatar src={avatarUrl} name={username || 'Student'} size="md" />
             <div className="min-w-0">
               <p className="font-heading text-xl text-[#0a0a0a]">Profile</p>
               <p className="text-sm text-[#4d554d]">
-                {roleLabel} · member since {memberSince}
+                {roleLabelText} · member since {memberSince}
               </p>
             </div>
           </div>
 
           <div className="space-y-4">
+            <div>
+              <p className={labelClass}>Profile photo</p>
+              <AvatarUploader
+                avatarUrl={avatarUrl}
+                name={username || 'Student'}
+                onChange={setAvatarUrl}
+              />
+            </div>
             <div>
               <label htmlFor="settings-username" className={labelClass}>
                 Username
@@ -214,12 +242,57 @@ export default function SettingsView() {
               </label>
               <input
                 id="settings-role"
-                value={roleLabel}
+                value={roleLabelText}
                 type="text"
                 disabled
                 className="w-full rounded-xl border border-[#e6e9e6] bg-[#f7f9f7] px-4 py-2.5 capitalize text-[#7b857b]"
               />
             </div>
+            <div>
+              <label htmlFor="settings-bio" className={labelClass}>
+                Bio
+              </label>
+              <textarea
+                id="settings-bio"
+                value={bio}
+                onChange={(event) => setBio(event.target.value.slice(0, 500))}
+                rows={3}
+                placeholder="Tell students a little about yourself and what you teach."
+                className={fieldClass}
+              />
+              <p className="mt-1 text-xs text-[#7b857b]">{bio.length}/500 characters</p>
+            </div>
+            <div>
+              <label htmlFor="settings-gender" className={labelClass}>
+                Gender
+              </label>
+              <select
+                id="settings-gender"
+                value={gender}
+                onChange={(event) =>
+                  setGender(event.target.value as 'male' | 'female' | '')
+                }
+                className={fieldClass}
+              >
+                <option value="" disabled>
+                  Select gender
+                </option>
+                {GENDER_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {user?.username && (
+              <Link
+                to={`/u/${encodeURIComponent(user.username)}`}
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-[#8a6d00] underline"
+              >
+                <i className="bi bi-person-circle" />
+                View my public profile
+              </Link>
+            )}
           </div>
         </section>
 
@@ -233,7 +306,7 @@ export default function SettingsView() {
           <div className="space-y-4">
             <div>
               <label htmlFor="settings-region" className={labelClass}>
-                Country / Region
+                Country
               </label>
               <select
                 id="settings-region"
@@ -241,10 +314,33 @@ export default function SettingsView() {
                 onChange={(event) => setRegion(event.target.value)}
                 className={fieldClass}
               >
-                {REGIONS.map((option) => (
-                  <option key={option}>{option}</option>
+                {COUNTRIES.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label htmlFor="settings-state" className={labelClass}>
+                State / region <span className="font-normal text-[#7b857b]">(optional)</span>
+              </label>
+              <input
+                id="settings-state"
+                value={state}
+                onChange={(event) => setState(event.target.value.slice(0, 80))}
+                type="text"
+                list={region === 'Nigeria' ? 'settings-nigerian-states' : undefined}
+                placeholder={region === 'Nigeria' ? 'e.g. Lagos' : 'State or region'}
+                className={fieldClass}
+              />
+              {region === 'Nigeria' && (
+                <datalist id="settings-nigerian-states">
+                  {NIGERIAN_STATES.map((stateName) => (
+                    <option key={stateName} value={stateName} />
+                  ))}
+                </datalist>
+              )}
             </div>
             <div>
               <label htmlFor="settings-language" className={labelClass}>
@@ -312,6 +408,36 @@ export default function SettingsView() {
         </div>
       </section>
 
+      {/* Creator verification */}
+      {user && user.role !== 'admin' && (
+        <section className={cardClass}>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="font-heading text-xl text-[#0a0a0a]">Creator account</p>
+              <p className="text-sm text-[#4d554d]">
+                {user.creatorStatus === 'approved'
+                  ? 'Your account is verified. You can upload videos and attach media to posts.'
+                  : 'Verify your email to unlock video and media uploads and show the creator badge on your profile.'}
+              </p>
+            </div>
+            {user.creatorStatus === 'approved' ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#f5c842] bg-[#fdf5d7] px-3 py-1.5 text-sm font-semibold text-[#8a6d00]">
+                <i className="bi bi-patch-check-fill" />
+                Verified creator
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setVerifyOpen(true)}
+                className="rounded-xl bg-[#f5c842] px-5 py-2.5 font-semibold text-[#0a0a0a] transition-colors hover:bg-[#e9b92b]"
+              >
+                Verify to become a creator
+              </button>
+            )}
+          </div>
+        </section>
+      )}
+
       {/* Account */}
       <section className={cardClass}>
         <div className="mb-4">
@@ -337,6 +463,8 @@ export default function SettingsView() {
           </button>
         </div>
       </section>
+
+      <CreatorVerificationModal open={verifyOpen} onClose={() => setVerifyOpen(false)} />
     </div>
   )
 }

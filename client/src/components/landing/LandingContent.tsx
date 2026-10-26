@@ -28,8 +28,8 @@ const audiences = [
     id: 'primary',
     name: 'Primary School',
     icon: 'bi-stars',
-    accent: '#15803d',
-    tag: '#15803d',
+    accent: '#3a8f4d',
+    tag: '#3a8f4d',
     iconInk: '#ffffff',
     desc: 'Playful, visual learning that makes early education joyful — simple notes, quizzes and encouragement shared in the classroom feed.',
   },
@@ -46,8 +46,8 @@ const audiences = [
     id: 'university',
     name: 'University',
     icon: 'bi-mortarboard',
-    accent: '#15803d',
-    tag: '#15803d',
+    accent: '#3a8f4d',
+    tag: '#3a8f4d',
     iconInk: '#ffffff',
     desc: 'Lecturers upload slides, readings and past papers once; students ask mid-lecture and share verified notes with the whole class.',
   },
@@ -173,7 +173,7 @@ export function LandingContent() {
 
   /* ---------- AI Study Assistant ---------- */
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: 'assistant', text: "Hi! I'm the Study Assistant. Ask me how Talma works, where to find things, or for a study tip to get going." },
+    { role: 'assistant', text: "Hi! I'm LINT — Learning Intelligence. Ask me how Talma works, where to find things, or for a study tip to get going." },
   ])
   const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
@@ -386,7 +386,7 @@ export function LandingContent() {
       {/* AI Study Assistant */}
       <section id="assistant" className="assistant">
         <div className="section__head">
-          <h2>Ask Study Assistant</h2>
+          <h2>Ask LINT</h2>
           <p>AI-powered help with notes, navigation &amp; study tips</p>
         </div>
 
@@ -394,8 +394,8 @@ export function LandingContent() {
           <div className="assistant__header">
             <span className="assistant__dot" />
             <div>
-              <strong>Study Assistant</strong>
-              <p>Guided demo — sign in for full AI</p>
+              <strong>LINT</strong>
+              <p>Learning Intelligence · Guided demo — sign in for full AI</p>
             </div>
           </div>
 
@@ -477,7 +477,7 @@ export function LandingContent() {
               <a href="#how">How it works</a>
               <a href="#audience">Who it&rsquo;s for</a>
               <a href="#moments">Campus moments</a>
-              <a href="#assistant">Study Assistant</a>
+              <a href="#assistant">LINT</a>
             </p>
           </div>
 

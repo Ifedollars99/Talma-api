@@ -18,6 +18,10 @@
     "lint": "npm run lint --workspace server && npm run lint --workspace client",
     "test": "npm run test --workspace server",
     "seed": "npm run seed --workspace server",
+    "make:admin": "npm run make:admin --workspace server",
+    "email:setup": "npm run email:setup --workspace server",
+    "email:test": "npm run email:test --workspace server --",
+    "email:preview": "npm run email:preview --workspace server",
     "generate:pdfs": "node scripts/generate-course-pdfs.mjs"
   },
   "devDependencies": {

@@ -37,10 +37,55 @@ const envSchema = z.object({
   REFRESH_COOKIE_SECURE: booleanish.default(false),
   REFRESH_COOKIE_SAMESITE: z.enum(['lax', 'strict', 'none']).default('lax'),
   AUTH_REQUIRE_EMAIL_VERIFICATION: booleanish.default(false),
+  /**
+   * Transactional email. `auto` picks Resend when a key is present, then SMTP,
+   * and finally a console logger for local development.
+   */
+  EMAIL_PROVIDER: z.enum(['auto', 'resend', 'smtp', 'ethereal', 'console']).default('auto'),
+  RESEND_API_KEY: z.string().default(''),
+  MAIL_FROM: z.string().min(3).default('Talma <onboarding@resend.dev>'),
+  MAIL_REPLY_TO: z.string().default(''),
+  SMTP_HOST: z.string().default(''),
+  SMTP_PORT: z.coerce.number().int().positive().max(65535).default(587),
+  SMTP_SECURE: booleanish.default(false),
+  SMTP_USER: z.string().default(''),
+  SMTP_PASS: z.string().default(''),
   PUBLIC_API_URL: z.string().url().default('http://localhost:4000'),
+  /** Where the React app lives — Paystack sends buyers back here. */
+  CLIENT_APP_URL: z.string().url().default('http://localhost:5173'),
   UPLOAD_DIR: z.string().default('uploads'),
   UPLOAD_ALLOWED_TYPES: csv,
   UPLOAD_MAX_MB: z.coerce.number().positive().default(25),
+  // Paid video library. Videos themselves live on YouTube (unlisted); the API
+  // only stores metadata and the purchase entitlement.
+  PAYSTACK_SECRET_KEY: z.string().default(''),
+  PAYSTACK_CURRENCY: z.string().trim().min(3).max(3).default('NGN'),
+  /** Optional explicit callback URL; defaults to `${CLIENT_APP_URL}/mycamp`. */
+  PAYSTACK_CALLBACK_URL: z.string().default(''),
+  /** Default price for a video, in the smallest currency unit (kobo). */
+  VIDEO_DEFAULT_PRICE_KOBO: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.coerce.number().int().min(1).default(200_000),
+  ),
+  /** Maximum accepted upload size for a creator video (bytes). */
+  VIDEO_MAX_UPLOAD_BYTES: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.coerce.number().int().positive().default(4 * 1024 * 1024 * 1024),
+  ),
+  /** The platform's cut of every video sale. Creators receive the remainder. */
+  PLATFORM_VIDEO_SHARE_PERCENT: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.coerce.number().min(0).max(100).default(30),
+  ),
+  // YouTube channel used for Talma-hosted uploads. The refresh token is minted
+  // once with `npm run youtube:auth --workspace server`.
+  YOUTUBE_CLIENT_ID: z.string().default(''),
+  YOUTUBE_CLIENT_SECRET: z.string().default(''),
+  YOUTUBE_REFRESH_TOKEN: z.string().default(''),
+  /** Required for uploads: reject videos that land on a different channel. */
+  YOUTUBE_CHANNEL_ID: z.string().default(''),
+  /** YouTube category id — 27 is Education. */
+  YOUTUBE_CATEGORY_ID: z.string().default('27'),
   LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),
@@ -107,6 +152,40 @@ export const env = {
           'video/webm',
           'application/pdf',
         ],
+  paystackConfigured: raw.PAYSTACK_SECRET_KEY.trim().length > 0,
+  emailProvider:
+    raw.EMAIL_PROVIDER === 'auto'
+      ? raw.RESEND_API_KEY.trim().length > 0
+        ? ('resend' as const)
+        : raw.SMTP_HOST.trim().length > 0
+          ? ('smtp' as const)
+          : raw.NODE_ENV === 'development'
+            ? ('ethereal' as const)
+            : ('console' as const)
+      : raw.EMAIL_PROVIDER,
+  emailConfigured:
+    raw.EMAIL_PROVIDER === 'resend'
+      ? raw.RESEND_API_KEY.trim().length > 0
+      : raw.EMAIL_PROVIDER === 'smtp'
+        ? raw.SMTP_HOST.trim().length > 0
+        : raw.EMAIL_PROVIDER === 'ethereal'
+          ? true
+          : raw.EMAIL_PROVIDER === 'auto'
+            ? raw.RESEND_API_KEY.trim().length > 0 ||
+              raw.SMTP_HOST.trim().length > 0 ||
+              raw.NODE_ENV === 'development'
+            : false,
+  youtubeConfigured:
+    raw.YOUTUBE_CLIENT_ID.trim().length > 0 &&
+    raw.YOUTUBE_CLIENT_SECRET.trim().length > 0 &&
+    raw.YOUTUBE_REFRESH_TOKEN.trim().length > 0 &&
+    raw.YOUTUBE_CHANNEL_ID.trim().length > 0,
+  /** The creator's default share, derived from the platform cut. */
+  creatorSharePercent: 100 - raw.PLATFORM_VIDEO_SHARE_PERCENT,
+  paystackCallbackUrl:
+    raw.PAYSTACK_CALLBACK_URL.trim().length > 0
+      ? raw.PAYSTACK_CALLBACK_URL.trim()
+      : `${raw.CLIENT_APP_URL.replace(/\/$/, '')}/mycamp`,
 } as const
 
 export type Env = typeof env

@@ -15,7 +15,7 @@ const LEVEL_GUIDE: Record<ChatInput['level'], string> = {
     'Be precise and academic. Show the reasoning step by step, mention assumptions, and flag common pitfalls.',
 }
 
-const GENERAL_PROMPT = `You are Talma AI, the assistant built into Talma — a learning platform for primary, secondary and university students.
+const GENERAL_PROMPT = `You are LINT (Learning Intelligence), the assistant built into Talma — a learning platform for primary, secondary and university students.
 You are a capable general-purpose assistant in the spirit of ChatGPT and Claude. You can help with anything the user brings: writing and editing, brainstorming, coding and debugging, mathematics and science, research and summarising, planning and productivity, exam preparation, and everyday questions.
 How to answer:
 - Answer the actual request directly and completely. No filler, no restating the question.
@@ -31,7 +31,7 @@ How to answer:
 Today's date is ${new Date().toISOString().slice(0, 10)}.`
 
 function studyPrompt(level: ChatInput['level']): string {
-  return `You are Talma AI in Study mode — a patient, encouraging tutor for a ${LEVEL_LABEL[level]} student.
+  return `You are LINT (Learning Intelligence) in Study mode — a patient, encouraging tutor for a ${LEVEL_LABEL[level]} student.
 ${LEVEL_GUIDE[level]}
 You help with explaining concepts, working through problems, building quizzes, summarising notes, checking essays, and planning revision.
 How to answer:

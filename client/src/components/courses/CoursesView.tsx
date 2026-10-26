@@ -496,7 +496,7 @@ export default function CoursesView() {
                         >
                           <div className="flex items-center space-x-3">
                             <i
-                              className={`bi text-lg text-[#15803d] ${
+                              className={`bi text-lg text-[#3a8f4d] ${
                                 expandedDepartment[faculty.id] === department.id
                                   ? 'bi-folder-open'
                                   : 'bi-folder'
@@ -505,7 +505,7 @@ export default function CoursesView() {
                             <h4 className="text-lg font-semibold text-[#0a0a0a]">
                               {department.name}
                             </h4>
-                            <span className="bg-[#e6f6ea] text-[#15803d] text-xs px-2 py-1 rounded-full font-medium">
+                            <span className="bg-[#edf4dc] text-[#3a8f4d] text-xs px-2 py-1 rounded-full font-medium">
                               {countDepartmentCourses(department)} courses
                             </span>
                           </div>
@@ -597,7 +597,7 @@ export default function CoursesView() {
                                     <button
                                       type="button"
                                       onClick={() => viewCourse(course)}
-                                      className="bg-[#15803d] text-white p-2 rounded-lg hover:bg-[#115e2e] transition-colors"
+                                      className="bg-[#3a8f4d] text-white p-2 rounded-lg hover:bg-[#2f7a41] transition-colors"
                                       title="View Course"
                                     >
                                       <i className="bi bi-eye text-lg" />
@@ -752,7 +752,7 @@ export default function CoursesView() {
               className="w-full text-sm text-[#4d554d] file:mr-3 file:px-4 file:py-2 file:rounded-lg file:border-0 file:bg-[#fdf5d7] file:text-[#8a6d00] file:font-medium"
             />
             {coursePdf && (
-              <p className="text-xs text-[#15803d] mt-2">
+              <p className="text-xs text-[#3a8f4d] mt-2">
                 Uploaded: {coursePdf.fileName}
               </p>
             )}

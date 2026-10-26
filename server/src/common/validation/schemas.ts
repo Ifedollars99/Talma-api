@@ -27,6 +27,10 @@ export const passwordSchema = z
   .min(8, 'Password must be at least 8 characters')
   .max(128, 'Password must be at most 128 characters')
 
-export const roleSchema = z.enum(['student', 'lecturer', 'admin'])
+/**
+ * Roles the public sign-up form may create. `student`/`lecturer` stay valid so
+ * older accounts and seeded data continue to work.
+ */
+export const roleSchema = z.enum(['user', 'creator', 'student', 'lecturer'])
 
 export const mediaTypeSchema = z.enum(['none', 'image', 'video'])

@@ -42,8 +42,8 @@ export const campusNewsCategories: HubCategory[] = [
     "title": "Admission updates",
     "desc": "For aspirants and newly admitted OOU students.",
     "icon": "bi-mortarboard",
-    "bg": "from-[#e6f6ea] to-[#dcfce7]",
-    "iconColor": "text-[#15803d]",
+    "bg": "from-[#edf4dc] to-[#e8f2d4]",
+    "iconColor": "text-[#3a8f4d]",
     "source": "OOU admission portal, JAMB CAPS, departmental cut-off notices.",
     "items": [
       {
@@ -138,8 +138,8 @@ export const campusNewsCategories: HubCategory[] = [
     "title": "Matriculation / graduation information",
     "desc": "Entry and exit milestones for OOU students.",
     "icon": "bi-flag",
-    "bg": "from-[#e6f6ea] to-[#dcfce7]",
-    "iconColor": "text-[#15803d]",
+    "bg": "from-[#edf4dc] to-[#e8f2d4]",
+    "iconColor": "text-[#3a8f4d]",
     "source": "OOU academic affairs, faculty officers, convocation brochure.",
     "items": [
       {
@@ -234,8 +234,8 @@ export const campusNewsCategories: HubCategory[] = [
     "title": "Scholarships",
     "desc": "Free money with deadlines — track these alongside school fees.",
     "icon": "bi-gift",
-    "bg": "from-[#e6f6ea] to-[#dcfce7]",
-    "iconColor": "text-[#15803d]",
+    "bg": "from-[#edf4dc] to-[#e8f2d4]",
+    "iconColor": "text-[#3a8f4d]",
     "source": "Donor portals (MTN, NNPC, PTDF), Ogun State bursary board, OOU student affairs.",
     "items": [
       {

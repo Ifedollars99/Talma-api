@@ -9,13 +9,85 @@ describe('Posts', () => {
     const response = await request(app)
       .post('/api/posts')
       .set('Authorization', `Bearer ${user.accessToken}`)
-      .send({ content: 'Here are the lecture notes for today.', subject: 'Mathematics' })
+      .send({
+        content: 'Here are the lecture notes for today.',
+        subject: 'Mathematics',
+        classLevel: 'SSS 2',
+      })
       .expect(201)
 
     expect(response.body.post.content).toContain('lecture notes')
     expect(response.body.post.author).toBe('Poster')
+    expect(response.body.post.subject).toBe('Mathematics')
+    expect(response.body.post.classLevel).toBe('SSS 2')
     expect(response.body.post.likes).toBe(0)
     expect(response.body.post.canDelete).toBe(true)
+  })
+
+  it('requires subject and class level for video posts', async () => {
+    const user = await registerUser({ username: 'VideoPoster' })
+    const response = await request(app)
+      .post('/api/posts')
+      .set('Authorization', `Bearer ${user.accessToken}`)
+      .send({
+        content: 'A quick tutorial',
+        mediaType: 'video',
+        mediaUrl: 'https://cdn.example.com/videos/tutorial.mp4',
+      })
+      .expect(422)
+
+    expect(response.body.error.code).toBe('VALIDATION_ERROR')
+  })
+
+  it('accepts tagged video posts', async () => {
+    const user = await registerUser({ username: 'TaggedVideoPoster' })
+    const response = await request(app)
+      .post('/api/posts')
+      .set('Authorization', `Bearer ${user.accessToken}`)
+      .send({
+        content: 'A quick tutorial',
+        mediaType: 'video',
+        mediaUrl: 'https://cdn.example.com/videos/tutorial.mp4',
+        subject: 'Physics',
+        classLevel: 'SSS 3',
+      })
+      .expect(201)
+
+    expect(response.body.post.subject).toBe('Physics')
+    expect(response.body.post.classLevel).toBe('SSS 3')
+  })
+
+  it('shows the author avatar on posts and keeps it in sync', async () => {
+    const user = await registerUser({ username: 'AvatarPoster' })
+    const firstAvatar = 'https://cdn.example.com/avatars/avatar-poster-1.png'
+    const nextAvatar = 'https://cdn.example.com/avatars/avatar-poster-2.png'
+
+    await request(app)
+      .patch('/api/users/me')
+      .set('Authorization', `Bearer ${user.accessToken}`)
+      .send({ avatarUrl: firstAvatar })
+      .expect(200)
+
+    const created = await request(app)
+      .post('/api/posts')
+      .set('Authorization', `Bearer ${user.accessToken}`)
+      .send({ content: 'Avatar propagation check' })
+      .expect(201)
+
+    expect(created.body.post.authorAvatarUrl).toBe(firstAvatar)
+
+    await request(app)
+      .patch('/api/users/me')
+      .set('Authorization', `Bearer ${user.accessToken}`)
+      .send({ avatarUrl: nextAvatar })
+      .expect(200)
+
+    const feed = await request(app)
+      .get('/api/posts')
+      .query({ feed: 'foryou', search: 'Avatar propagation' })
+      .expect(200)
+
+    expect(feed.body.items[0].authorAvatarUrl).toBe(nextAvatar)
   })
 
   it('refuses to create a post without authentication', async () => {
@@ -62,7 +134,7 @@ describe('Posts', () => {
       .send({ content: 'Photosynthesis basics', subject: 'Biology' })
       .expect(201)
 
-    const response = await request(app).get('/api/posts?feed=discover&search=euler').expect(200)
+    const response = await request(app).get('/api/posts?feed=foryou&search=euler').expect(200)
     expect(response.body.items).toHaveLength(1)
     expect(response.body.items[0].content).toContain('Euler')
   })
@@ -126,13 +198,23 @@ describe('Posts', () => {
     expect(feed.body.total).toBe(0)
   })
 
-  it('shows the lecturer feed separately from the general feed', async () => {
-    const lecturer = await registerUser({ username: 'DrLecturer', role: 'lecturer' })
+  it('shows posts from accounts the viewer follows', async () => {
+    const creator = await registerUser({ username: 'DrCreator', role: 'lecturer' })
     const student = await registerUser({ username: 'Student2', email: 'student2@example.com' })
+
+    const verification = await request(app)
+      .post('/api/creators/verify/request')
+      .set('Authorization', `Bearer ${creator.accessToken}`)
+      .expect(200)
+    await request(app)
+      .post('/api/creators/verify/confirm')
+      .set('Authorization', `Bearer ${creator.accessToken}`)
+      .send({ code: verification.body.devCode })
+      .expect(200)
 
     await request(app)
       .post('/api/posts')
-      .set('Authorization', `Bearer ${lecturer.accessToken}`)
+      .set('Authorization', `Bearer ${creator.accessToken}`)
       .send({ content: 'Lecture slides uploaded' })
       .expect(201)
     await request(app)
@@ -144,8 +226,22 @@ describe('Posts', () => {
     const forYou = await request(app).get('/api/posts?feed=foryou').expect(200)
     expect(forYou.body.total).toBe(2)
 
-    const following = await request(app).get('/api/posts?feed=following').expect(200)
+    const emptyFollowing = await request(app)
+      .get('/api/posts?feed=following')
+      .set('Authorization', `Bearer ${student.accessToken}`)
+      .expect(200)
+    expect(emptyFollowing.body.total).toBe(0)
+
+    await request(app)
+      .post('/api/users/DrCreator/follow')
+      .set('Authorization', `Bearer ${student.accessToken}`)
+      .expect(200)
+
+    const following = await request(app)
+      .get('/api/posts?feed=following')
+      .set('Authorization', `Bearer ${student.accessToken}`)
+      .expect(200)
     expect(following.body.total).toBe(1)
-    expect(following.body.items[0].authorRole).toBe('lecturer')
+    expect(following.body.items[0].authorRole).toBe('creator')
   })
 })

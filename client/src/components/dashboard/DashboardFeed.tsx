@@ -1,21 +1,25 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useCreatePost, useDeletePost, useFeed, useToggleLike } from '../../hooks/usePosts'
 import { useUploadPostMedia } from '../../hooks/useUploads'
 import { ApiError } from '../../lib/apiClient'
+import { useAuth } from '../../lib/auth'
+import { VIDEO_CLASS_LEVELS, VIDEO_SUBJECTS } from '../../lib/videoOptions'
 import type { FeedTab, Message } from '../../types'
-import DiscoverPanel from './DiscoverPanel'
+import Avatar from '../profile/Avatar'
 import Modal from '../ui/Modal'
+import CreatorVerificationModal from '../videos/CreatorVerificationModal'
 
 interface DashboardFeedProps {
   messages: Message[]
   notifications: number
   username: string
+  onOpenSearch: () => void
 }
 
 const FEED_TABS: { id: FeedTab; label: string }[] = [
   { id: 'foryou', label: 'For You' },
   { id: 'following', label: 'Following' },
-  { id: 'discover', label: 'Discover' },
 ]
 
 /** Formats a timestamp the same way the original feed did. */
@@ -35,31 +39,29 @@ export default function DashboardFeed({
   messages,
   notifications,
   username,
+  onOpenSearch,
 }: DashboardFeedProps) {
   const [feedTab, setFeedTab] = useState<FeedTab>('foryou')
-  const [discoverSearch, setDiscoverSearch] = useState('')
   const [showCreatePost, setShowCreatePost] = useState(false)
-  const [pickMediaOnOpen, setPickMediaOnOpen] = useState(false)
   const [postToDelete, setPostToDelete] = useState<string | null>(null)
+  const [verifyOpen, setVerifyOpen] = useState(false)
 
-  const { data, isLoading, isError } = useFeed({
-    tab: feedTab,
-    search: feedTab === 'discover' ? discoverSearch : '',
-  })
+  const { user } = useAuth()
+  const isCreator = user?.creatorStatus === 'approved' || user?.role === 'admin'
+
+  const { data, isLoading, isError } = useFeed({ tab: feedTab })
   const createPost = useCreatePost()
   const deletePost = useDeletePost()
   const toggleLike = useToggleLike()
 
   const posts = useMemo(() => data?.items ?? [], [data])
 
-  const openComposer = (pickMedia = false) => {
-    setPickMediaOnOpen(pickMedia)
+  const openComposer = () => {
     setShowCreatePost(true)
   }
 
   const closeComposer = () => {
     setShowCreatePost(false)
-    setPickMediaOnOpen(false)
   }
 
   const handleDelete = () => {
@@ -92,9 +94,21 @@ export default function DashboardFeed({
           </div>
         </div>
 
-        {/* Sticky For You / Following / Discover tabs */}
+        {/* Creator search */}
+        <div className="px-4 pb-3 pt-1">
+          <button
+            type="button"
+            onClick={onOpenSearch}
+            className="flex w-full items-center gap-2.5 rounded-full bg-[#f2f5f2] px-4 py-2.5 text-left text-sm text-[#7b857b] transition-colors hover:bg-[#eef1ee] hover:text-[#4d554d]"
+          >
+            <i className="bi bi-search text-base" />
+            <span>Search creators, educators, students...</span>
+          </button>
+        </div>
+
+        {/* Sticky For You / Following tabs */}
         <div className="sticky top-[64px] z-30 bg-white/95 backdrop-blur-md border-b border-[#e6e9e6]">
-          <div className="grid grid-cols-3">
+          <div className="grid grid-cols-2">
             {FEED_TABS.map((tab) => (
               <button
                 key={tab.id}
@@ -116,37 +130,33 @@ export default function DashboardFeed({
         </div>
 
         {/* Mobile composer (X style) */}
-        {feedTab !== 'discover' && (
-          <div className="bg-white border-b border-[#e6e9e6] px-4 py-3 flex space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-[#f5c842] to-[#e0b53a] rounded-full flex items-center justify-center flex-shrink-0">
-              <span className="text-white text-sm font-semibold">
-                {username.charAt(0).toUpperCase()}
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => openComposer()}
-              className="flex-1 text-left text-[15px] text-[#7b857b] pt-2"
-            >
-              Share something educational...
-            </button>
-            <button
-              type="button"
-              onClick={() => openComposer(true)}
-              aria-label="Add a photo or video"
-              className="self-center w-9 h-9 rounded-full bg-[#fdf5d7] text-[#8a6d00] flex items-center justify-center"
-            >
-              <i className="bi bi-image" />
-            </button>
-          </div>
-        )}
+        <div className="bg-white border-b border-[#e6e9e6] px-4 py-3 flex space-x-3">
+          <Avatar src={user?.avatarUrl} name={username} size="sm" />
+          <button
+            type="button"
+            onClick={() => openComposer()}
+            className="flex-1 text-left text-[15px] text-[#7b857b] pt-2"
+          >
+            Share something educational...
+          </button>
+          <button
+            type="button"
+            onClick={() => openComposer()}
+            aria-label="Add a video"
+            title="Add a video"
+            className="self-center w-9 h-9 rounded-full bg-[#fdf5d7] text-[#8a6d00] flex items-center justify-center hover:bg-[#fdeeb8] transition-colors"
+          >
+            <i className="bi bi-camera-video" />
+          </button>
+        </div>
 
         {/* Mobile create-post sheet */}
-        {showCreatePost && feedTab !== 'discover' && (
+        {showCreatePost && (
           <div className="bg-white border-b border-[#e6e9e6] p-4">
             <PostComposer
               variant="mobile"
-              autoPickMedia={pickMediaOnOpen}
+              canAttachMedia={isCreator}
+              onRequireVerification={() => setVerifyOpen(true)}
               onCancel={closeComposer}
               onSubmit={(values) => {
                 createPost.mutate(values, {
@@ -157,41 +167,47 @@ export default function DashboardFeed({
           </div>
         )}
 
-        {/* DISCOVER tab: search + hubs (mobile) */}
-        {feedTab === 'discover' && (
-          <div className="bg-[#f7f9f7]">
-            <DiscoverPanel
-              search={discoverSearch}
-              onSearchChange={setDiscoverSearch}
-              variant="mobile"
-            />
-            <p className="px-4 py-2 text-xs font-semibold text-[#7b857b] uppercase tracking-wide">
-              Community posts{discoverSearch ? ` matching "${discoverSearch}"` : ''}
-            </p>
-          </div>
-        )}
-
         {/* MOBILE FEED: X-style rows */}
         <div className="bg-white divide-y divide-[#e6e9e6] border-b border-[#e6e9e6]">
           {posts.length === 0 && !isLoading && (
             <div className="p-10 text-center">
-              <p className="text-[#7b857b]">No posts yet. Be the first to share!</p>
+              <p className="text-[#7b857b]">
+                {feedTab === 'following'
+                  ? 'Follow creators to see their posts here.'
+                  : 'No posts yet. Be the first to share!'}
+              </p>
             </div>
           )}
 
           {posts.map((post) => (
             <article key={post.id} className="px-4 py-3 flex space-x-3 active:bg-[#fafbfa]">
-              <div className="w-10 h-10 bg-[#eef3ee] rounded-full flex items-center justify-center flex-shrink-0 border border-[#e6e9e6]">
-                <span className="text-[#0a0a0a] text-sm font-semibold">
-                  {post.author.charAt(0).toUpperCase()}
-                </span>
-              </div>
+              <Link
+                to={`/u/${encodeURIComponent(post.authorUsername ?? post.authorId)}`}
+                className="flex-shrink-0"
+                aria-label={`View ${post.author}'s profile`}
+              >
+                <Avatar
+                  src={post.authorAvatarUrl}
+                  name={post.author}
+                  size="sm"
+                  className="border border-[#e6e9e6]"
+                />
+              </Link>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 text-[15px] min-w-0">
-                  <span className="font-bold text-[#0a0a0a] truncate">{post.author}</span>
-                  {post.authorRole === 'lecturer' && (
-                    <span className="text-[11px] px-1.5 py-0.5 bg-[#fdf5d7] text-[#8a6d00] rounded-full font-semibold flex-shrink-0">
-                      Lecturer
+                  <Link
+                    to={`/u/${encodeURIComponent(post.authorUsername ?? post.authorId)}`}
+                    className="font-bold text-[#0a0a0a] truncate hover:underline"
+                  >
+                    {post.author}
+                  </Link>
+                  {post.authorRole === 'creator' && (
+                    <span
+                      className="flex items-center gap-1 text-[11px] px-1.5 py-0.5 bg-[#fdf5d7] text-[#8a6d00] rounded-full font-semibold flex-shrink-0"
+                      title="Verified creator"
+                    >
+                      <i className="bi bi-patch-check-fill" />
+                      Creator
                     </span>
                   )}
                   <span className="text-[#7b857b] text-[13px] flex-shrink-0">
@@ -208,8 +224,10 @@ export default function DashboardFeed({
                     </button>
                   )}
                 </div>
-                {post.subject && (
-                  <p className="text-[13px] text-[#8a6d00] font-medium">{post.subject}</p>
+                {(post.subject || post.classLevel) && (
+                  <p className="text-[13px] text-[#8a6d00] font-medium">
+                    {[post.subject, post.classLevel].filter(Boolean).join(' · ')}
+                  </p>
                 )}
                 <p className="text-[15px] text-[#0a0a0a] leading-normal mt-0.5">{post.content}</p>
                 {post.mediaType === 'image' && post.mediaUrl && (
@@ -263,7 +281,7 @@ export default function DashboardFeed({
       {/* Welcome Section — compact greeting (DESKTOP ONLY) */}
       <div className="welcome-card hidden lg:block relative overflow-hidden bg-gradient-to-br from-[#0a0a0a] via-[#0a0a0a] to-[#1f1f1f] rounded-2xl px-8 py-6 text-white shadow-lg">
         <div className="welcome-card__glow absolute -top-24 -right-16 w-56 h-56 bg-[#f5c842]/10 rounded-full blur-3xl" />
-        <div className="welcome-card__glow welcome-card__glow--green absolute -bottom-24 -left-16 w-56 h-56 bg-[#15803d]/20 rounded-full blur-3xl" />
+        <div className="welcome-card__glow welcome-card__glow--green absolute -bottom-24 -left-16 w-56 h-56 bg-[#3a8f4d]/20 rounded-full blur-3xl" />
 
         <div className="relative z-10 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
           <h1 className="welcome-card__title font-heading text-2xl xl:text-3xl font-semibold">
@@ -271,15 +289,25 @@ export default function DashboardFeed({
           </h1>
           <p className="welcome-card__meta text-sm text-white/70">
             <span className="text-[#f5c842] font-medium">{notifications} new notifications</span>{' '}
-            and <span className="text-[#22c55e] font-medium">{messages.length} unread</span> messages
+            and <span className="text-[#7cb342] font-medium">{messages.length} unread</span> messages
             waiting.
           </p>
         </div>
       </div>
 
-      {/* Desktop For You / Following / Discover tabs */}
+      {/* Desktop creator search */}
+      <button
+        type="button"
+        onClick={onOpenSearch}
+        className="hidden lg:flex w-full items-center gap-3 rounded-2xl border border-[#e6e9e6] bg-white px-5 py-3.5 text-left text-[15px] text-[#7b857b] shadow-sm transition-colors hover:border-[#d8ded8] hover:text-[#4d554d]"
+      >
+        <i className="bi bi-search text-lg" />
+        <span>Search creators, educators and students...</span>
+      </button>
+
+      {/* Desktop For You / Following tabs */}
       <div className="hidden lg:block bg-white rounded-2xl border border-[#e6e9e6] shadow-sm overflow-hidden">
-        <div className="grid grid-cols-3 max-w-2xl mx-auto">
+        <div className="grid grid-cols-2 max-w-2xl mx-auto">
           {FEED_TABS.map((tab) => (
             <button
               key={tab.id}
@@ -300,16 +328,16 @@ export default function DashboardFeed({
         </div>
       </div>
 
-      {/* Create Post Section - Refined (DESKTOP ONLY, hidden on Discover) */}
-      {feedTab !== 'discover' && (
-        <div className="hidden lg:block bg-white rounded-2xl border border-[#e6e9e6] overflow-hidden shadow-sm">
-          <div className="p-8 bg-gradient-to-r from-white via-[#fdf5d7]/20 to-white">
+      {/* Create Post Section - Refined (DESKTOP ONLY) */}
+      <div className="hidden lg:block bg-white rounded-2xl border border-[#e6e9e6] overflow-hidden shadow-sm">
+        <div className="p-8 bg-gradient-to-r from-white via-[#fdf5d7]/20 to-white">
             <div className="flex items-center space-x-4 mb-6">
-              <div className="w-14 h-14 bg-gradient-to-br from-[#f5c842] to-[#e0b53a] rounded-full flex items-center justify-center flex-shrink-0 shadow-md">
-                <span className="text-white text-lg font-semibold">
-                  {username.charAt(0).toUpperCase()}
-                </span>
-              </div>
+              <Avatar
+                src={user?.avatarUrl}
+                name={username}
+                size="md"
+                className="shadow-md"
+              />
               <button
                 type="button"
                 onClick={() => openComposer()}
@@ -319,12 +347,12 @@ export default function DashboardFeed({
               </button>
               <button
                 type="button"
-                onClick={() => openComposer(true)}
-                aria-label="Add a photo or video"
-                title="Add a photo or video"
+                onClick={() => openComposer()}
+                aria-label="Add a video"
+                title="Add a video"
                 className="w-12 h-12 flex-shrink-0 rounded-full bg-[#fdf5d7] text-[#8a6d00] hover:bg-[#fdeeb8] hover:scale-105 flex items-center justify-center transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[#f5c842] focus:ring-offset-2"
               >
-                <i className="bi bi-image text-xl" />
+                <i className="bi bi-camera-video text-xl" />
               </button>
             </div>
 
@@ -332,7 +360,8 @@ export default function DashboardFeed({
               <div className="border-t border-[#e6e9e6] pt-8 space-y-6 animate-fade-in">
                 <PostComposer
                   variant="desktop"
-                  autoPickMedia={pickMediaOnOpen}
+                  canAttachMedia={isCreator}
+                  onRequireVerification={() => setVerifyOpen(true)}
                   onCancel={closeComposer}
                   onSubmit={(values) => {
                     createPost.mutate(values, {
@@ -342,9 +371,8 @@ export default function DashboardFeed({
                 />
               </div>
             )}
-          </div>
         </div>
-      )}
+      </div>
 
       {/* Educational Posts Feed - Premium Treatment (DESKTOP ONLY) */}
       <div className="hidden lg:block bg-white rounded-2xl border border-[#e6e9e6] overflow-hidden shadow-sm">
@@ -357,27 +385,17 @@ export default function DashboardFeed({
           </p>
         </div>
 
-        {/* DISCOVER tab panel (desktop) */}
-        {feedTab === 'discover' && (
-          <DiscoverPanel
-            search={discoverSearch}
-            onSearchChange={setDiscoverSearch}
-            variant="desktop"
-          />
-        )}
-        {feedTab === 'discover' && (
-          <p className="px-8 pt-5 text-xs font-semibold text-[#7b857b] uppercase tracking-wide border-t border-[#e6e9e6]">
-            Community posts{discoverSearch ? ` matching "${discoverSearch}"` : ''}
-          </p>
-        )}
-
         <div className="divide-y divide-[#e6e9e6]">
           {posts.length === 0 && !isLoading && (
             <div className="p-12 text-center">
               <div className="w-16 h-16 bg-[#fdf5d7] rounded-full flex items-center justify-center mx-auto mb-4">
                 <i className="bi bi-chat-dots text-2xl text-[#8a6d00]" />
               </div>
-              <p className="text-[#7b857b] text-lg">No posts yet. Be the first to share something!</p>
+              <p className="text-[#7b857b] text-lg">
+                {feedTab === 'following'
+                  ? 'Follow creators to see their posts here.'
+                  : 'No posts yet. Be the first to share something!'}
+              </p>
             </div>
           )}
 
@@ -391,29 +409,48 @@ export default function DashboardFeed({
             <article key={post.id} className="p-8 hover:bg-[#fafbfa] transition-colors duration-300">
               {/* Post Header */}
               <div className="flex items-start space-x-4 mb-6">
-                <div className="w-14 h-14 bg-gradient-to-br from-[#eef3ee] to-[#e8ece8] rounded-full flex items-center justify-center flex-shrink-0 shadow-sm border border-[#e6e9e6]">
-                  <span className="text-[#0a0a0a] text-lg font-semibold">
-                    {post.author.charAt(0).toUpperCase()}
-                  </span>
-                </div>
+                <Link
+                  to={`/u/${encodeURIComponent(post.authorUsername ?? post.authorId)}`}
+                  className="flex-shrink-0"
+                  aria-label={`View ${post.author}'s profile`}
+                >
+                  <Avatar
+                    src={post.authorAvatarUrl}
+                    name={post.author}
+                    size="md"
+                    className="border border-[#e6e9e6] shadow-sm"
+                  />
+                </Link>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center space-x-3 flex-wrap">
-                    <h3 className="font-semibold text-lg text-[#0a0a0a]">{post.author}</h3>
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        post.authorRole === 'lecturer'
-                          ? 'bg-[#fdf5d7] text-[#8a6d00] border border-[#e6e9e6]'
-                          : 'bg-[#e6f6ea] text-[#15803d] border border-[#dcfce7]'
-                      }`}
+                    <Link
+                      to={`/u/${encodeURIComponent(post.authorUsername ?? post.authorId)}`}
+                      className="font-semibold text-lg text-[#0a0a0a] hover:underline"
                     >
-                      {post.authorRole === 'lecturer' ? '👨‍🏫 Lecturer' : '📚 Student'}
-                    </span>
+                      {post.author}
+                    </Link>
+                    {post.authorRole === 'creator' ? (
+                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-[#fdf5d7] text-[#8a6d00] border border-[#e6e9e6]">
+                        <i className="bi bi-patch-check-fill" />
+                        Verified creator
+                      </span>
+                    ) : post.authorRole === 'admin' ? (
+                      <span className="px-3 py-1 rounded-full text-xs font-semibold bg-[#edf4dc] text-[#3a8f4d] border border-[#e8f2d4]">
+                        Admin
+                      </span>
+                    ) : null}
                   </div>
                   <div className="flex items-center space-x-3 text-sm text-[#7b857b] mt-2 flex-wrap">
                     {post.subject && (
                       <span className="flex items-center space-x-1 bg-[#f7f9f7] px-3 py-1 rounded-full">
                         <i className="bi bi-bookmark" />
                         <span>{post.subject}</span>
+                      </span>
+                    )}
+                    {post.classLevel && (
+                      <span className="flex items-center space-x-1 bg-[#f7f9f7] px-3 py-1 rounded-full">
+                        <i className="bi bi-mortarboard" />
+                        <span>{post.classLevel}</span>
                       </span>
                     )}
                     <span className="flex items-center space-x-1">
@@ -490,9 +527,9 @@ export default function DashboardFeed({
                   </button>
                   <button
                     type="button"
-                    className="flex items-center space-x-2 text-[#7b857b] hover:text-[#15803d] group transition-colors"
+                    className="flex items-center space-x-2 text-[#7b857b] hover:text-[#3a8f4d] group transition-colors"
                   >
-                    <div className="p-2 rounded-lg group-hover:bg-[#e6f6ea] transition-colors">
+                    <div className="p-2 rounded-lg group-hover:bg-[#edf4dc] transition-colors">
                       <i className="bi bi-chat text-lg" />
                     </div>
                     <span className="text-sm font-medium">{post.comments}</span>
@@ -548,6 +585,11 @@ export default function DashboardFeed({
           </div>
         </div>
       </Modal>
+
+      <CreatorVerificationModal
+        open={verifyOpen}
+        onClose={() => setVerifyOpen(false)}
+      />
     </>
   )
 }
@@ -574,14 +616,17 @@ function downloadMedia(mediaUrl: string, fileName: string): void {
 
 interface ComposerValues {
   content: string
+  subject?: string
+  classLevel?: string
   mediaType?: 'none' | 'image' | 'video'
   mediaUrl?: string
 }
 
 interface PostComposerProps {
   variant: 'desktop' | 'mobile'
-  /** Opens the media picker as soon as the composer mounts. */
-  autoPickMedia?: boolean
+  /** Verified creators may attach media; everyone else is asked to verify. */
+  canAttachMedia?: boolean
+  onRequireVerification?: () => void
   onCancel: () => void
   onSubmit: (values: ComposerValues) => void
   error?: string
@@ -589,12 +634,15 @@ interface PostComposerProps {
 
 function PostComposer({
   variant,
-  autoPickMedia = false,
+  canAttachMedia = false,
+  onRequireVerification,
   onCancel,
   onSubmit,
   error,
 }: PostComposerProps) {
   const [content, setContent] = useState('')
+  const [subject, setSubject] = useState('')
+  const [classLevel, setClassLevel] = useState('')
   const [mediaType, setMediaType] = useState<'none' | 'image' | 'video'>('none')
   const [mediaUrl, setMediaUrl] = useState('')
   const [previewUrl, setPreviewUrl] = useState('')
@@ -603,13 +651,6 @@ function PostComposer({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const upload = useUploadPostMedia()
   const uploading = upload.isPending
-
-  useEffect(() => {
-    if (!autoPickMedia) return
-    // Let the composer mount before opening the OS file picker.
-    const timer = window.setTimeout(() => fileInputRef.current?.click(), 60)
-    return () => window.clearTimeout(timer)
-  }, [autoPickMedia])
 
   const handleFile = async (file: File | undefined) => {
     if (!file) return
@@ -647,12 +688,24 @@ function PostComposer({
 
   const submit = () => {
     if (!content.trim()) return
+    if (mediaType === 'video' && (!subject || !classLevel)) {
+      setFileError('Choose a subject and class level for this video.')
+      return
+    }
+    setFileError('')
     onSubmit({
       content: content.trim(),
+      ...(subject ? { subject } : {}),
+      ...(classLevel ? { classLevel } : {}),
       mediaType,
       mediaUrl: mediaUrl || undefined,
     })
   }
+
+  const canSubmit =
+    content.trim().length > 0 &&
+    !uploading &&
+    (mediaType !== 'video' || (Boolean(subject) && Boolean(classLevel)))
 
   const mediaPreview = previewUrl ? (
     <div
@@ -688,27 +741,99 @@ function PostComposer({
     </div>
   ) : null
 
+  const tagFields = (
+    <div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label
+            htmlFor={`post-subject-${variant}`}
+            className="mb-1.5 block text-sm font-medium text-[#4d554d]"
+          >
+            Subject
+          </label>
+          <select
+            id={`post-subject-${variant}`}
+            value={subject}
+            onChange={(event) => {
+              setSubject(event.target.value)
+              setFileError('')
+            }}
+            className="w-full rounded-xl border border-[#e6e9e6] bg-white px-4 py-2.5 text-[#0a0a0a] focus:outline-none focus:ring-2 focus:ring-[#f5c842]"
+          >
+            <option value="">Choose a subject</option>
+            {VIDEO_SUBJECTS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label
+            htmlFor={`post-class-level-${variant}`}
+            className="mb-1.5 block text-sm font-medium text-[#4d554d]"
+          >
+            Class level
+          </label>
+          <select
+            id={`post-class-level-${variant}`}
+            value={classLevel}
+            onChange={(event) => {
+              setClassLevel(event.target.value)
+              setFileError('')
+            }}
+            className="w-full rounded-xl border border-[#e6e9e6] bg-white px-4 py-2.5 text-[#0a0a0a] focus:outline-none focus:ring-2 focus:ring-[#f5c842]"
+          >
+            <option value="">Choose a class level</option>
+            {VIDEO_CLASS_LEVELS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      {mediaType === 'video' && (!subject || !classLevel) && (
+        <p className="mt-2 text-xs font-medium text-[#8a6d00]">
+          Choose a subject and class level to publish this video.
+        </p>
+      )}
+    </div>
+  )
+
   const uploadField = (
     <div>
       {variant === 'mobile' ? (
-        <>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*,video/*"
-            className="hidden"
-            id="post-media-upload-mobile"
-            onChange={(event) => void handleFile(event.target.files?.[0])}
-          />
-          <label
-            htmlFor="post-media-upload-mobile"
-            aria-label="Choose image or video"
-            className="w-10 h-10 rounded-full bg-[#fdf5d7] text-[#8a6d00] flex items-center justify-center cursor-pointer"
+        canAttachMedia ? (
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,video/*"
+              className="hidden"
+              id="post-media-upload-mobile"
+              onChange={(event) => void handleFile(event.target.files?.[0])}
+            />
+            <label
+              htmlFor="post-media-upload-mobile"
+              aria-label="Choose image or video"
+              className="w-10 h-10 rounded-full bg-[#fdf5d7] text-[#8a6d00] flex items-center justify-center cursor-pointer"
+            >
+              <i className="bi bi-camera-video" />
+            </label>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={onRequireVerification}
+            aria-label="Verify to add media"
+            className="w-10 h-10 rounded-full bg-[#fdf5d7] text-[#8a6d00] flex items-center justify-center"
           >
-            <i className="bi bi-image" />
-          </label>
-        </>
-      ) : (
+            <i className="bi bi-camera-video" />
+          </button>
+        )
+      ) : canAttachMedia ? (
         <>
           <span className="block text-sm font-medium text-[#4d554d] mb-3">Add media</span>
           <input
@@ -723,10 +848,19 @@ function PostComposer({
             htmlFor="post-media-upload"
             className="w-full px-4 py-2.5 bg-gradient-to-r from-[#fdf5d7] to-[#fdeeb8] text-[#8a6d00] rounded-xl cursor-pointer hover:from-[#fdeeb8] hover:to-[#fbe7a1] transition-all duration-300 flex items-center justify-center space-x-2 font-medium border border-[#e6e9e6]"
           >
-            <i className="bi bi-image text-lg" />
-            <span>{uploading ? 'Uploading…' : 'Choose image or video'}</span>
+            <i className="bi bi-camera-video text-lg" />
+            <span>{uploading ? 'Uploading…' : 'Choose a video or photo'}</span>
           </label>
         </>
+      ) : (
+        <button
+          type="button"
+          onClick={onRequireVerification}
+          className="w-full px-4 py-2.5 bg-gradient-to-r from-[#fdf5d7] to-[#fdeeb8] text-[#8a6d00] rounded-xl cursor-pointer hover:from-[#fdeeb8] hover:to-[#fbe7a1] transition-all duration-300 flex items-center justify-center space-x-2 font-medium border border-[#e6e9e6]"
+        >
+          <i className="bi bi-patch-check text-lg" />
+          <span>Verify to attach media</span>
+        </button>
       )}
     </div>
   )
@@ -741,6 +875,7 @@ function PostComposer({
           className="w-full p-3 border border-[#e6e9e6] rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-[#f5c842] text-[15px] text-[#0a0a0a]"
           rows={3}
         />
+        {tagFields}
         {mediaPreview}
         {fileError && <p className="text-sm text-[#8a6d00]">{fileError}</p>}
         {error && <p className="text-sm text-[#8a6d00]">{error}</p>}
@@ -757,7 +892,7 @@ function PostComposer({
             <button
               type="button"
               onClick={submit}
-              disabled={!content.trim() || uploading}
+              disabled={!canSubmit}
               className="px-5 py-2 bg-[#0a0a0a] text-white rounded-full text-sm font-semibold disabled:opacity-40"
             >
               Post
@@ -784,6 +919,8 @@ function PostComposer({
         />
       </div>
 
+      {tagFields}
+
       <div>
         {uploadField}
       </div>
@@ -804,7 +941,7 @@ function PostComposer({
         <button
           type="button"
           onClick={submit}
-          disabled={!content.trim() || uploading}
+          disabled={!canSubmit}
           className="px-8 py-2.5 bg-gradient-to-r from-[#f5c842] to-[#e0b53a] text-white rounded-xl hover:shadow-lg hover:from-[#e0b53a] hover:to-[#b8860b] transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed font-medium"
         >
           Share Post

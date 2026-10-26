@@ -12,7 +12,7 @@ export function SiteHeader() {
   const closeMobile = () => setIsMobileOpen(false)
 
   const navLinkClass =
-    'block text-gray-900 hover:text-[#15803d] hover:bg-[#15803d]/10 px-4 py-3 rounded-xl text-base font-semibold transition-all duration-200'
+    'block text-gray-900 hover:text-[#3a8f4d] hover:bg-[#3a8f4d]/10 px-4 py-3 rounded-xl text-base font-semibold transition-all duration-200'
 
   return (
     <nav className="site-header">
@@ -52,7 +52,7 @@ export function SiteHeader() {
               onClick={toggleMobile}
               aria-label={isMobileOpen ? 'Close menu' : 'Open menu'}
               aria-expanded={isMobileOpen}
-              className="text-gray-900 hover:text-[#15803d] p-2 rounded-xl transition-all duration-200 hover:bg-[#15803d]/10"
+              className="text-gray-900 hover:text-[#3a8f4d] p-2 rounded-xl transition-all duration-200 hover:bg-[#3a8f4d]/10"
             >
               <i className={`bi ${isMobileOpen ? 'bi-x-lg' : 'bi-list'} text-2xl`} />
             </button>
@@ -65,7 +65,7 @@ export function SiteHeader() {
           isMobileOpen ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'
         }`}
       >
-        <div className="px-4 pt-2 pb-6 space-y-2 border-t border-[#15803d]/15 bg-white/95 backdrop-blur-md">
+        <div className="px-4 pt-2 pb-6 space-y-2 border-t border-[#3a8f4d]/15 bg-white/95 backdrop-blur-md">
           <a
             href="#how"
             onClick={toggleMobile}
@@ -105,7 +105,7 @@ export function SiteHeader() {
           <Link
             to="/signup"
             onClick={toggleMobile}
-            className="w-full mt-4 bg-[#15803d] hover:bg-[#22c55e] text-white px-6 py-4 rounded-xl font-semibold shadow-lg transition-all duration-300 flex items-center justify-center gap-2"
+            className="w-full mt-4 bg-[#3a8f4d] hover:bg-[#7cb342] text-white px-6 py-4 rounded-xl font-semibold shadow-lg transition-all duration-300 flex items-center justify-center gap-2"
           >
             <span>Get Started</span>
             <i className="bi bi-arrow-right" />

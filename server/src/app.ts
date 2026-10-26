@@ -9,6 +9,7 @@ import { apiRouter } from './routes.js'
 import { errorHandler, notFoundHandler } from './common/middleware/errorHandler.js'
 import { globalLimiter } from './common/middleware/rateLimit.js'
 import { uploadRoot } from './modules/uploads/upload.service.js'
+import { paystackWebhook } from './modules/videos/video.controller.js'
 
 export function createApp() {
   const app = express()
@@ -50,6 +51,14 @@ export function createApp() {
       methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
     }),
+  )
+
+  // Paystack signs the exact raw request body, so this route must be parsed as
+  // a Buffer *before* the global JSON parser runs.
+  app.post(
+    '/api/payments/paystack/webhook',
+    express.raw({ type: '*/*', limit: '1mb' }),
+    paystackWebhook,
   )
 
   // AI chat carries compressed image attachments as data URLs, so it needs a

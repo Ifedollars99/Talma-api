@@ -38,6 +38,43 @@ export async function getProfile(req: Request, res: Response): Promise<void> {
   if (!username) {
     throw AppError.badRequest('A username is required')
   }
-  const user = await userService.getPublicProfile(username)
-  res.json({ user })
+  const profile = await userService.getPublicProfile(username, req.userId)
+  res.json(profile)
+}
+
+/** GET /api/users/search?q=... */
+export async function search(req: Request, res: Response): Promise<void> {
+  const query = typeof req.query.q === 'string' ? req.query.q : ''
+  const users = await userService.searchProfiles(query, req.userId)
+  res.json({ users })
+}
+
+/** GET /api/users/:username/followers */
+export async function followers(req: Request, res: Response): Promise<void> {
+  const users = await userService.listFollowers(String(req.params.username ?? ''), req.userId)
+  res.json({ users })
+}
+
+/** GET /api/users/:username/following */
+export async function following(req: Request, res: Response): Promise<void> {
+  const users = await userService.listFollowing(String(req.params.username ?? ''), req.userId)
+  res.json({ users })
+}
+
+/** POST /api/users/:username/follow */
+export async function follow(req: Request, res: Response): Promise<void> {
+  const social = await userService.followProfile(
+    String(req.params.username ?? ''),
+    req.userId as string,
+  )
+  res.json({ following: true, ...social })
+}
+
+/** DELETE /api/users/:username/follow */
+export async function unfollow(req: Request, res: Response): Promise<void> {
+  const social = await userService.unfollowProfile(
+    String(req.params.username ?? ''),
+    req.userId as string,
+  )
+  res.json({ following: false, ...social })
 }

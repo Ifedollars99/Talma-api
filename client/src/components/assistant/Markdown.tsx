@@ -42,7 +42,7 @@ function renderInline(text: string, keyPrefix = 'inline'): ReactNode[] {
       nodes.push(
         <code
           key={key}
-          className="rounded-md bg-[#eef4ef] px-1.5 py-0.5 font-mono text-[0.85em] text-[#15803d]"
+          className="rounded-md bg-[#f1f5e6] px-1.5 py-0.5 font-mono text-[0.85em] text-[#3a8f4d]"
         >
           {token.slice(1, -1)}
         </code>,
@@ -59,7 +59,7 @@ function renderInline(text: string, keyPrefix = 'inline'): ReactNode[] {
             href={href}
             target="_blank"
             rel="noreferrer noopener"
-            className="font-medium text-[#15803d] underline decoration-[#f5c842] decoration-2 underline-offset-2 transition-colors hover:text-[#22c55e]"
+            className="font-medium text-[#3a8f4d] underline decoration-[#f5c842] decoration-2 underline-offset-2 transition-colors hover:text-[#7cb342]"
           >
             {label}
           </a>,
@@ -224,7 +224,7 @@ export default function Markdown({ text }: { text: string }) {
                 ? 'font-heading text-lg font-semibold text-[#0a0a0a]'
                 : block.level === 2
                   ? 'text-base font-semibold text-[#0a0a0a]'
-                  : 'text-[13px] font-semibold uppercase tracking-[0.12em] text-[#15803d]'
+                  : 'text-[13px] font-semibold uppercase tracking-[0.12em] text-[#3a8f4d]'
 
             if (block.level === 1) {
               return (
@@ -255,11 +255,11 @@ export default function Markdown({ text }: { text: string }) {
             ))
 
             return block.ordered ? (
-              <ol key={key} className="list-decimal space-y-1 pl-5 marker:text-[#15803d]">
+              <ol key={key} className="list-decimal space-y-1 pl-5 marker:text-[#3a8f4d]">
                 {items}
               </ol>
             ) : (
-              <ul key={key} className="list-disc space-y-1 pl-5 marker:text-[#15803d]">
+              <ul key={key} className="list-disc space-y-1 pl-5 marker:text-[#3a8f4d]">
                 {items}
               </ul>
             )

@@ -5,7 +5,7 @@ export const registerSchema = z.object({
   username: usernameSchema,
   email: emailSchema,
   password: passwordSchema,
-  role: roleSchema.default('student'),
+  role: roleSchema.default('user'),
 })
 
 export const loginSchema = z.object({

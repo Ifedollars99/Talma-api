@@ -10,7 +10,7 @@ export function Toast({ toast }: ToastProps) {
     <div
       role="status"
       className={`fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg flex items-center space-x-2 z-[100] text-white animate-toast-in ${
-        toast.tone === 'success' ? 'bg-[#15803d]' : 'bg-[#8a6d00]'
+        toast.tone === 'success' ? 'bg-[#3a8f4d]' : 'bg-[#8a6d00]'
       }`}
     >
       <i

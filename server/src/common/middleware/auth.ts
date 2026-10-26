@@ -1,7 +1,9 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express'
 import { AppError } from '../errors/AppError.js'
 import { verifyAccessToken, type AccessTokenPayload } from '../utils/jwt.js'
+import { env } from '../../config/env.js'
 import { UserModel, type UserRole } from '../../modules/users/user.model.js'
+import { CreatorProfileModel } from '../../modules/creators/creator.model.js'
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -11,6 +13,13 @@ declare global {
       auth?: AccessTokenPayload
       /** The authenticated user's database id. */
       userId?: string
+      /** Populated by `requireCreator` for approved creators. */
+      creator?: {
+        id: string
+        userId: string
+        sharePercent: number
+        paystackSubaccountCode?: string
+      }
     }
   }
 }
@@ -70,6 +79,50 @@ export const optionalAuth: RequestHandler = async (req, _res, next) => {
     // An invalid token on an optional route is simply ignored.
   }
   next()
+}
+
+/**
+ * Restricts a route to verified creators. A creator is verified either through
+ * the email-code flow (`User.creatorStatus === 'approved'`) or by having an
+ * approved payout profile. Administrators pass through as platform owners.
+ */
+export const requireCreator: RequestHandler = async (req, _res, next) => {
+  try {
+    if (req.auth?.role === 'admin') {
+      next()
+      return
+    }
+
+    if (!req.userId) {
+      throw AppError.unauthorized('Authentication required')
+    }
+
+    const user = await UserModel.findById(req.userId)
+      .select('_id username creatorStatus')
+      .lean()
+    if (!user || user.creatorStatus !== 'approved') {
+      throw AppError.forbidden(
+        'Only approved creators can upload videos. Verify your account to become a creator.',
+      )
+    }
+
+    const profile = await CreatorProfileModel.findOne({
+      user: req.userId,
+      status: 'approved',
+    }).lean()
+
+    req.creator = {
+      id: profile ? String(profile._id) : req.userId,
+      userId: req.userId,
+      sharePercent: profile ? profile.sharePercent : env.creatorSharePercent,
+      ...(profile?.paystackSubaccountCode
+        ? { paystackSubaccountCode: profile.paystackSubaccountCode }
+        : {}),
+    }
+    next()
+  } catch (error) {
+    next(error)
+  }
 }
 
 /** Restricts a route to the listed roles. Must run after `requireAuth`. */

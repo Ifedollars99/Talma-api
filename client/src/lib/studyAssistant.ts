@@ -1,4 +1,4 @@
-/** Shared Talma AI demo replies. */
+/** Shared LINT demo replies. */
 
 export type AssistantMode = 'general' | 'study'
 
@@ -20,7 +20,7 @@ export function localGeneralFallback(text: string): string {
   const t = text.toLowerCase()
 
   if (/^(hi|hello|hey|good (morning|afternoon|evening))/.test(t)) {
-    return `**Hi! I'm Talma AI.** I can help with writing, code, maths, research, planning and study — anything you'd ask ChatGPT or Claude.
+    return `**Hi! I'm LINT.** I can help with writing, code, maths, research, planning and study — anything you'd ask ChatGPT or Claude.
 
 I'm in **demo mode** right now. Add a server AI key to unlock full answers.
 
@@ -93,7 +93,7 @@ export function localStudyFallback(text: string, level: StudyLevel): string {
         : 'Here is a concise academic approach. '
 
   if (/^(hi|hello|hey|good (morning|afternoon|evening))/.test(t))
-    return `**Hello!** I'm Talma AI in Study mode. Ask me to explain a topic, quiz you, summarise your notes, or plan revision for ${LEVEL_LABEL[level]}. Full answers turn on once AI is connected.`
+    return `**Hello!** I'm LINT in Study mode. Ask me to explain a topic, quiz you, summarise your notes, or plan revision for ${LEVEL_LABEL[level]}. Full answers turn on once AI is connected.`
 
   if (/quiz|test me|practice question|mcq/.test(t))
     return `${prefix}Quick self-check: pick one topic you studied today and write three questions — one definition, one "why", one "apply it". Answer without notes, then mark yourself.

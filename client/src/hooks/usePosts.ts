@@ -32,11 +32,13 @@ export function useCreatePost() {
     mutationFn: (input: {
       content: string
       subject?: string
+      classLevel?: string
       mediaType?: 'none' | 'image' | 'video'
       mediaUrl?: string
     }) => api.post<{ post: Post }>('/posts', input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: postKeys.all })
+      void queryClient.invalidateQueries({ queryKey: ['profiles'] })
     },
   })
 }
@@ -51,6 +53,8 @@ export function useToggleLike() {
         : api.post<{ post: Post }>(`/posts/${postId}/like`),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: postKeys.all })
+      // Public profile pages cache the same posts under a separate key.
+      void queryClient.invalidateQueries({ queryKey: ['profiles'] })
     },
   })
 }
@@ -62,6 +66,7 @@ export function useDeletePost() {
     mutationFn: (postId: string) => api.delete<void>(`/posts/${postId}`),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: postKeys.all })
+      void queryClient.invalidateQueries({ queryKey: ['profiles'] })
     },
   })
 }

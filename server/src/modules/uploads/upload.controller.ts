@@ -3,6 +3,7 @@ import type { NextFunction, Request, Response } from 'express'
 import { env } from '../../config/env.js'
 import { AppError } from '../../common/errors/AppError.js'
 import {
+  AVATAR_DIR,
   COURSE_PDF_DIR,
   POST_MEDIA_DIR,
   createUploader,
@@ -16,6 +17,11 @@ const postMediaUploader = createUploader(POST_MEDIA_DIR, {
   allowedTypes: env.uploadAllowedTypes.filter(isPhotoOrVideo),
   unsupportedMessage:
     'Only photos and videos can be attached to a post — audio files are not supported.',
+})
+const avatarUploader = createUploader(AVATAR_DIR, {
+  allowedTypes: env.uploadAllowedTypes.filter((mimeType) => mimeType.startsWith('image/')),
+  unsupportedMessage: 'Profile photos must be a JPEG, PNG, GIF or WebP image.',
+  maxFileSizeMb: 8,
 })
 const coursePdfUploader = createUploader(COURSE_PDF_DIR)
 
@@ -68,6 +74,23 @@ export async function uploadPostMedia(
     res.status(201).json({
       url: publicUrl(relativePath),
       mediaType,
+      fileName: file.originalname,
+      size: file.size,
+    })
+  })
+}
+
+/** POST /api/uploads/avatar */
+export async function uploadAvatar(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  runUploader(avatarUploader, req, res, next, (file) => {
+    const relativePath = path.join(AVATAR_DIR, file.filename)
+
+    res.status(201).json({
+      url: publicUrl(relativePath),
       fileName: file.originalname,
       size: file.size,
     })

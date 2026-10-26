@@ -6,8 +6,10 @@ export default defineConfig({
     globals: false,
     include: ['tests/**/*.test.ts'],
     setupFiles: ['tests/setup.ts'],
-    testTimeout: 30_000,
-    hookTimeout: 60_000,
+    testTimeout: 60_000,
+    // The first run downloads the mongod binary (~600 MB) before the suite can
+    // start; allow enough time for a slow connection.
+    hookTimeout: 600_000,
     pool: 'forks',
     poolOptions: {
       forks: { singleFork: true },

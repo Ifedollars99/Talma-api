@@ -359,7 +359,7 @@ export default function MessagesView({ messages }: MessagesViewProps) {
                         <button
                           type="button"
                           onClick={() => leaveCommunity.mutate(community.id)}
-                          className="mt-3 text-xs font-medium px-4 py-2 rounded-full border border-[#15803d] text-[#15803d]"
+                          className="mt-3 text-xs font-medium px-4 py-2 rounded-full border border-[#3a8f4d] text-[#3a8f4d]"
                         >
                           <i className="bi bi-check-circle mr-1" />
                           Joined — leave?

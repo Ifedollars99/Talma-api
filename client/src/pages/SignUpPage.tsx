@@ -5,11 +5,11 @@ import { ApiError } from '../lib/apiClient'
 import '../styles/auth.css'
 
 type MessageType = 'success' | 'error'
-type Category = '' | 'student' | 'lecturer'
+type Category = '' | 'user' | 'creator'
 
 /**
  * Sign-up screen — a direct port of the original `SignUpPage.vue`, now wired
- * to the Talma API. The "Staff/Lecturer" option maps onto the `lecturer` role.
+ * to the Talma API. Accounts are created as either a normal user or a creator.
  */
 export default function SignUpPage() {
   const { register } = useAuth()
@@ -137,7 +137,7 @@ export default function SignUpPage() {
         username,
         email,
         password,
-        role: category === 'lecturer' ? 'lecturer' : 'student',
+        role: category,
       })
 
       setCategory('')
@@ -171,7 +171,7 @@ export default function SignUpPage() {
     if (passwordStrength < index) return 'bg-[#2a2a2a]'
     if (passwordStrength < 2) return 'bg-[#ffd166]'
     if (passwordStrength < 3) return 'bg-[#f5c842]'
-    return 'bg-[#22c55e]'
+    return 'bg-[#7cb342]'
   }
 
   return (
@@ -185,7 +185,7 @@ export default function SignUpPage() {
         <div className="bg-black/40 backdrop-blur-xl border border-[#f5c842]/25 rounded-3xl shadow-2xl p-8 space-y-8">
           {/* Header */}
           <div className="text-center space-y-2">
-            <div className="w-16 h-16 bg-gradient-to-r from-[#15803d] to-[#22c55e] rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+            <div className="w-16 h-16 bg-gradient-to-r from-[#3a8f4d] to-[#7cb342] rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
               <i className="bi bi-mortarboard-fill text-white text-2xl" />
             </div>
             <h1 className="text-3xl font-bold text-white">Create Account</h1>
@@ -219,11 +219,11 @@ export default function SignUpPage() {
                   <option value="" disabled className="bg-[#0a0a0a] text-white/75">
                     Select your category
                   </option>
-                  <option value="student" className="bg-[#0a0a0a] text-white">
-                    Student
+                  <option value="user" className="bg-[#0a0a0a] text-white">
+                    Normal user
                   </option>
-                  <option value="lecturer" className="bg-[#0a0a0a] text-white">
-                    Staff/Lecturer
+                  <option value="creator" className="bg-[#0a0a0a] text-white">
+                    Creator
                   </option>
                 </select>
                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
@@ -231,6 +231,11 @@ export default function SignUpPage() {
                 </div>
               </div>
               {categoryError && <p className="text-[#ffd166] text-sm">{categoryError}</p>}
+              {category === 'creator' && (
+                <p className="text-xs text-white/60">
+                  Creator accounts apply for approval from Multimedia before uploading lessons.
+                </p>
+              )}
             </div>
 
             {/* Username Input */}
@@ -379,7 +384,7 @@ export default function SignUpPage() {
             <button
               type="submit"
               disabled={loading || !isFormValid}
-              className="w-full py-3 px-4 bg-gradient-to-r from-[#15803d] to-[#22c55e] hover:from-[#22c55e] hover:to-[#15803d] disabled:from-[#2a2a2a] disabled:to-[#3a3a3a] disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-[#f5c842] focus:ring-offset-2 focus:ring-offset-transparent"
+              className="w-full py-3 px-4 bg-gradient-to-r from-[#3a8f4d] to-[#7cb342] hover:from-[#7cb342] hover:to-[#3a8f4d] disabled:from-[#2a2a2a] disabled:to-[#3a3a3a] disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-[#f5c842] focus:ring-offset-2 focus:ring-offset-transparent"
             >
               {loading ? (
                 <span className="flex items-center justify-center">
@@ -401,14 +406,14 @@ export default function SignUpPage() {
               role="status"
               className={`rounded-lg p-4 text-center transition-all duration-300 ${
                 messageType === 'success'
-                  ? 'bg-[#22c55e]/15 border border-[#22c55e]/40 text-[#22c55e]'
+                  ? 'bg-[#7cb342]/15 border border-[#7cb342]/40 text-[#7cb342]'
                   : 'bg-[#f5c842]/15 border border-[#f5c842]/40 text-[#ffd166]'
               }`}
             >
               <div className="flex items-center justify-center space-x-2">
                 <i
                   className={`bi ${
-                    messageType === 'success' ? 'bi-check-circle text-[#22c55e]' : 'bi-exclamation-circle text-[#ffd166]'
+                    messageType === 'success' ? 'bi-check-circle text-[#7cb342]' : 'bi-exclamation-circle text-[#ffd166]'
                   }`}
                 />
                 <p className="font-medium">{message}</p>

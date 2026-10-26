@@ -35,8 +35,8 @@ export const finalYearCategories: HubCategory[] = [
     "title": "Chapters 1 – 5 & literature review",
     "desc": "The classic Nigerian undergraduate structure.",
     "icon": "bi-book",
-    "bg": "from-[#e6f6ea] to-[#dcfce7]",
-    "iconColor": "text-[#15803d]",
+    "bg": "from-[#edf4dc] to-[#e8f2d4]",
+    "iconColor": "text-[#3a8f4d]",
     "items": [
       {
         "title": "Chapter 1 — Introduction",
@@ -116,8 +116,8 @@ export const finalYearCategories: HubCategory[] = [
     "title": "Project defence & common mistakes",
     "desc": "Defend what YOU did with confidence.",
     "icon": "bi-mic",
-    "bg": "from-[#e6f6ea] to-[#dcfce7]",
-    "iconColor": "text-[#15803d]",
+    "bg": "from-[#edf4dc] to-[#e8f2d4]",
+    "iconColor": "text-[#3a8f4d]",
     "items": [
       {
         "title": "Project defence prep",

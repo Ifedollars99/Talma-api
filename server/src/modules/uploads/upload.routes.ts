@@ -8,4 +8,5 @@ export const uploadsRouter = Router()
 uploadsRouter.use(requireAuth)
 
 uploadsRouter.post('/post-media', writeLimiter, controller.uploadPostMedia)
+uploadsRouter.post('/avatar', writeLimiter, controller.uploadAvatar)
 uploadsRouter.post('/course-pdf', writeLimiter, controller.uploadCoursePdf)

@@ -1,40 +1,61 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
+import { roleLabel } from '../lib/roleLabel'
 import { useMessages } from '../hooks/useMessages'
 import { useNotifications } from '../hooks/useNotifications'
 import ProfileMenu from '../components/profile/ProfileMenu'
+import CreatorSearchModal from '../components/profile/CreatorSearchModal'
 import DashboardFeed from '../components/dashboard/DashboardFeed'
 import ClassroomView from '../components/courses/CoursesView'
 import MessagesView from '../components/messages/MessagesView'
 import StudyAssistantView from '../components/assistant/StudyAssistantView'
 import SettingsView from '../components/settings/SettingsView'
+import VideosView from '../components/videos/VideosView'
 
-type Tab = 'dashboard' | 'classroom' | 'messages' | 'assistant' | 'settings'
+type Tab = 'dashboard' | 'classroom' | 'videos' | 'messages' | 'assistant' | 'settings'
 
 const NAV_ITEMS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: 'bi-speedometer2' },
+  { id: 'dashboard', label: 'Home', icon: 'bi-speedometer2' },
   { id: 'classroom', label: 'Classroom', icon: 'bi-easel2' },
-  { id: 'messages', label: 'Messages', icon: 'bi-chat-dots' },
-  { id: 'assistant', label: 'Study Assistant', icon: 'bi-stars' },
+  { id: 'videos', label: 'Multimedia', icon: 'bi-camera-video' },
+  { id: 'assistant', label: 'LINT', icon: 'bi-stars' },
   { id: 'settings', label: 'Settings', icon: 'bi-gear' },
 ]
 
 const MOBILE_NAV_ITEMS: { id: Tab; label: string; icon: string; activeIcon: string }[] = [
   { id: 'dashboard', label: 'Home', icon: 'bi-house-door', activeIcon: 'bi-house-door-fill' },
   { id: 'classroom', label: 'Classroom', icon: 'bi-easel2', activeIcon: 'bi-easel2-fill' },
-  { id: 'messages', label: 'Messages', icon: 'bi-chat-dots', activeIcon: 'bi-chat-dots-fill' },
-  { id: 'assistant', label: 'Assistant', icon: 'bi-stars', activeIcon: 'bi-stars' },
+  { id: 'videos', label: 'Multimedia', icon: 'bi-camera-video', activeIcon: 'bi-camera-video-fill' },
+  { id: 'assistant', label: 'LINT', icon: 'bi-stars', activeIcon: 'bi-stars' },
   { id: 'settings', label: 'Settings', icon: 'bi-gear', activeIcon: 'bi-gear-fill' },
 ]
 
 /**
  * The signed-in application shell — a direct port of the original
- * `MycampPage.vue`: desktop sidebar, mobile bottom navigation and the five
+ * `MycampPage.vue`: desktop sidebar, mobile bottom navigation and the
  * dashboard tabs.
  */
 export default function DashboardPage() {
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState<Tab>('dashboard')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const paymentReference = searchParams.get('reference') ?? searchParams.get('trxref')
+
+  // Paystack returns the buyer to /mycamp?reference=… — open the Videos tab so
+  // the checkout can be confirmed and the card unlocked straight away.
+  useEffect(() => {
+    if (paymentReference) setActiveTab('videos')
+  }, [paymentReference])
+
+  const clearPaymentReference = () => {
+    const next = new URLSearchParams(searchParams)
+    next.delete('reference')
+    next.delete('trxref')
+    setSearchParams(next, { replace: true })
+  }
 
   const { data: messagesData } = useMessages()
   const { data: notificationsData } = useNotifications()
@@ -44,7 +65,7 @@ export default function DashboardPage() {
   const notifications = notificationsData?.unread ?? 0
 
   const username = user?.username ?? 'Student'
-  const userRole = user?.role === 'lecturer' ? 'Lecturer' : 'Student'
+  const userRole = roleLabel(user?.role)
 
   return (
     <div className="talma-app min-h-screen bg-[#f7f9f7]">
@@ -61,14 +82,26 @@ export default function DashboardPage() {
                   Talma
                 </h1>
                 <p className="hidden sm:block text-sm text-white/55">
-                  {userRole === 'Student'
-                    ? 'You signed up as a Student'
-                    : 'You signed up as a Lecturer'}
+                  {userRole === 'Administrator'
+                    ? 'Signed in as an Administrator'
+                    : `You signed up as a ${userRole}`}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center space-x-5">
+            <div className="flex items-center space-x-2 sm:space-x-5">
+              {/* Creator search */}
+              <button
+                type="button"
+                onClick={() => setSearchOpen(true)}
+                aria-label="Search creators"
+                title="Search creators"
+                className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-2.5 py-2 text-white/75 transition-colors hover:border-white/30 hover:bg-white/10 hover:text-white sm:px-3.5"
+              >
+                <i className="bi bi-search text-lg" />
+                <span className="hidden text-sm font-medium sm:inline">Search</span>
+              </button>
+
               {/* Notifications */}
               <div className="relative">
                 <button
@@ -78,9 +111,9 @@ export default function DashboardPage() {
                   className="p-2 text-white/70 hover:text-white relative transition-colors"
                 >
                   <i className="bi bi-bell text-xl" />
-                  {notifications > 0 && (
+                  {unreadMessages > 0 && (
                     <span className="absolute -top-1 -right-1 bg-[#8a6d00] text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
-                      {notifications}
+                      {unreadMessages}
                     </span>
                   )}
                 </button>
@@ -112,11 +145,6 @@ export default function DashboardPage() {
                     >
                       <i className={`bi ${item.icon} text-lg`} />
                       <span>{item.label}</span>
-                      {item.id === 'messages' && unreadMessages > 0 && (
-                        <span className="ml-auto bg-[#f5c842] text-[#0a0a0a] text-xs px-2 py-0.5 rounded-full font-semibold">
-                          {unreadMessages}
-                        </span>
-                      )}
                     </button>
                   </li>
                 ))}
@@ -132,11 +160,19 @@ export default function DashboardPage() {
                   messages={messages}
                   notifications={notifications}
                   username={username}
+                  onOpenSearch={() => setSearchOpen(true)}
                 />
               </div>
             )}
 
             {activeTab === 'classroom' && <ClassroomView />}
+
+            {activeTab === 'videos' && (
+              <VideosView
+                paymentReference={paymentReference}
+                onPaymentSettled={clearPaymentReference}
+              />
+            )}
 
             {activeTab === 'messages' && <MessagesView messages={messages} />}
 
@@ -159,31 +195,18 @@ export default function DashboardPage() {
                 activeTab === item.id ? 'text-[#0a0a0a]' : 'text-[#7b857b]'
               }`}
             >
-              {item.id === 'messages' ? (
-                <span className="relative">
-                  <i
-                    className={`text-[22px] leading-none ${
-                      activeTab === item.id ? `bi ${item.activeIcon}` : `bi ${item.icon}`
-                    }`}
-                  />
-                  {unreadMessages > 0 && (
-                    <span className="absolute -top-1.5 -right-2 bg-[#f5c842] text-[#0a0a0a] text-[10px] min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center font-bold">
-                      {unreadMessages}
-                    </span>
-                  )}
-                </span>
-              ) : (
-                <i
-                  className={`text-[22px] leading-none ${
-                    activeTab === item.id ? `bi ${item.activeIcon}` : `bi ${item.icon}`
-                  }`}
-                />
-              )}
+              <i
+                className={`text-[22px] leading-none ${
+                  activeTab === item.id ? `bi ${item.activeIcon}` : `bi ${item.icon}`
+                }`}
+              />
               <span className="text-[10px] font-medium">{item.label}</span>
             </button>
           ))}
         </div>
       </nav>
+
+      <CreatorSearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   )
 }

@@ -6,7 +6,7 @@ import { AppError } from '../errors/AppError.js'
 export interface AccessTokenPayload extends JwtPayload {
   sub: string
   username: string
-  role: 'student' | 'lecturer' | 'admin'
+  role: 'user' | 'creator' | 'student' | 'lecturer' | 'admin'
 }
 
 export interface RefreshTokenPayload extends JwtPayload {

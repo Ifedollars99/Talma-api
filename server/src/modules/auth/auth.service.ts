@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import { env } from '../../config/env.js'
 import { logger } from '../../config/logger.js'
 import { AppError } from '../../common/errors/AppError.js'
+import { sendPasswordResetEmail } from '../../common/email/mailer.js'
 import {
   createOpaqueToken,
   hashOpaqueToken,
@@ -70,7 +71,7 @@ function issueAccessToken(user: User): string {
 }
 
 /**
- * Registers a new student or lecturer.
+ * Registers a new normal user or creator.
  *
  * The refresh token is returned in the response body; the HTTP layer moves it
  * into an HttpOnly cookie so it never reaches JavaScript.
@@ -237,11 +238,11 @@ export async function getCurrentUser(userId: string): Promise<PublicUser> {
 }
 
 /**
- * Starts the password-reset flow.
+ * Starts the password-reset flow and emails a branded reset link.
  *
- * No mail transport is configured for local development, so the raw token is
- * returned in the response (and logged) instead of being emailed. Configure a
- * mailer before deploying.
+ * The raw token is still returned to the API layer in development/testing so
+ * the flow can be exercised without a mail provider; production responses omit
+ * it. The controller decides whether to expose that value.
  */
 export async function requestPasswordReset(email: string): Promise<{ resetToken?: string }> {
   const user = await UserModel.findOne({ email }).select(
@@ -257,7 +258,11 @@ export async function requestPasswordReset(email: string): Promise<{ resetToken?
   user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000)
   await user.save()
 
-  logger.info({ email }, `Password reset requested. Reset token: ${token}`)
+  const resetUrl = `${env.CLIENT_APP_URL.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(token)}`
+  // Email delivery must not change the timing or outcome of the request.
+  void sendPasswordResetEmail(user.email, user.username, resetUrl).catch(() => undefined)
+
+  logger.info({ email }, 'Password reset requested')
 
   return { resetToken: token }
 }

@@ -1,9 +1,13 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import { requireAuth } from '../../common/middleware/auth.js'
+import { optionalAuth, requireAuth } from '../../common/middleware/auth.js'
 import { validate } from '../../common/middleware/validate.js'
 import * as controller from './user.controller.js'
-import { updateProfileSchema, usernameParamSchema } from './user.validation.js'
+import {
+  searchProfilesSchema,
+  updateProfileSchema,
+  usernameParamSchema,
+} from './user.validation.js'
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, 'Your current password is required'),
@@ -22,7 +26,38 @@ usersRouter.post(
 )
 usersRouter.delete('/me', requireAuth, controller.deleteMe)
 usersRouter.get(
+  '/search',
+  optionalAuth,
+  validate({ query: searchProfilesSchema }),
+  controller.search,
+)
+usersRouter.get(
+  '/:username/followers',
+  optionalAuth,
+  validate({ params: usernameParamSchema }),
+  controller.followers,
+)
+usersRouter.get(
+  '/:username/following',
+  optionalAuth,
+  validate({ params: usernameParamSchema }),
+  controller.following,
+)
+usersRouter.post(
+  '/:username/follow',
+  requireAuth,
+  validate({ params: usernameParamSchema }),
+  controller.follow,
+)
+usersRouter.delete(
+  '/:username/follow',
+  requireAuth,
+  validate({ params: usernameParamSchema }),
+  controller.unfollow,
+)
+usersRouter.get(
   '/:username',
+  optionalAuth,
   validate({ params: usernameParamSchema }),
   controller.getProfile,
 )
