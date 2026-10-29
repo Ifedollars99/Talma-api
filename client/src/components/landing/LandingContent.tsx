@@ -467,7 +467,7 @@ export function LandingContent() {
               students and lecturers, one class at a time.
             </p>
             <p className="footer__contact">
-              <i className="bi bi-envelope" /> support@talma.app
+              <i className="bi bi-envelope" /> taofeeqifedollar@gmail.com
             </p>
           </div>
 
@@ -487,6 +487,10 @@ export function LandingContent() {
               Copyright © 2026. All rights reserved.
               <span className="footer__credit">Made by Ifedollars.</span>
               <span className="footer__credit">Campus photos via Wikimedia Commons contributors.</span>
+            </p>
+            <p className="footer__text">
+              <a href="/privacy.html">Privacy Policy</a>
+              <a href="/terms.html">Terms of Service</a>
             </p>
           </div>
         </div>

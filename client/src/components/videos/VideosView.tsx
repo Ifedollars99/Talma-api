@@ -220,16 +220,17 @@ export default function VideosView({
       {isAdmin && (
         <div className="rounded-xl border border-[#f5c842]/50 bg-[#fdf5d7] px-4 py-3 text-sm text-[#6b5400]">
           <i className="bi bi-info-circle me-2" />
-          Creator uploads stay <strong>private</strong> on YouTube until you approve them in the
-          Review tab.
+          Creator uploads stay <strong>unlisted</strong> and out of the library until you
+          approve them in the Review tab.
         </div>
       )}
 
       {!isAdmin && isCreator && (
         <div className="rounded-xl border border-[#d6e8bd] bg-[#f5f9e8] px-4 py-3 text-sm text-[#2c7a40]">
           <i className="bi bi-camera-video me-2" />
-          Your uploads are private until an admin reviews them. You keep{' '}
-          <strong>{sharePercent}%</strong> of every sale.
+          Your uploads are hidden from the library until an admin reviews them. You can preview
+          your own upload in “My videos”, and you keep <strong>{sharePercent}%</strong> of every
+          sale.
         </div>
       )}
 
@@ -352,7 +353,7 @@ export default function VideosView({
               </h3>
               <p className="mx-auto mt-1 max-w-md text-[#4d554d]">
                 {tab === 'mine'
-                  ? 'Upload your first lesson. It stays private until an admin reviews it.'
+                  ? 'Upload your first lesson. It stays out of the library until an admin reviews it.'
                   : isAdmin
                     ? 'Creator uploads will appear here after they finish processing on YouTube.'
                     : 'Check back soon — lessons are being added to the library.'}

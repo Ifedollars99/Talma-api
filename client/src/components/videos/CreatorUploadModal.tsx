@@ -9,6 +9,16 @@ import {
 import Modal from '../ui/Modal'
 
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024 * 1024
+const DEFAULT_PRICE_NAIRA = 2000
+const PRICE_PRESETS = [500, 1000, 2000, 5000] as const
+const MIN_PAID_PRICE_NAIRA = 100
+const MAX_PRICE_NAIRA = 1_000_000
+
+type PriceChoice = 'preset' | 'custom' | 'free'
+
+function formatNaira(amount: number): string {
+  return `₦${amount.toLocaleString('en-NG', { maximumFractionDigits: 2 })}`
+}
 
 interface CreatorUploadModalProps {
   open: boolean
@@ -40,12 +50,32 @@ export default function CreatorUploadModal({
   const [description, setDescription] = useState('')
   const [subject, setSubject] = useState('')
   const [classLevel, setClassLevel] = useState('')
+  const [priceChoice, setPriceChoice] = useState<PriceChoice>('preset')
+  const [presetPrice, setPresetPrice] = useState<number>(DEFAULT_PRICE_NAIRA)
+  const [customPrice, setCustomPrice] = useState('')
   const [confirmed, setConfirmed] = useState(false)
   const [phase, setPhase] = useState<Phase>('idle')
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
 
   const busy = phase === 'starting' || phase === 'uploading' || phase === 'finalizing'
+
+  const customPriceValue = customPrice.trim()
+  const priceNaira =
+    priceChoice === 'free'
+      ? 0
+      : priceChoice === 'custom'
+        ? Number(customPriceValue)
+        : presetPrice
+  const priceIsValid =
+    priceChoice === 'custom'
+      ? customPriceValue !== '' &&
+        Number.isFinite(priceNaira) &&
+        (priceNaira === 0 || priceNaira >= MIN_PAID_PRICE_NAIRA) &&
+        priceNaira <= MAX_PRICE_NAIRA
+      : Number.isFinite(priceNaira) && priceNaira >= 0 && priceNaira <= MAX_PRICE_NAIRA
+  const creatorEarnings = priceIsValid ? Math.round((priceNaira * sharePercent) / 100) : 0
+  const priceLabel = priceIsValid ? formatNaira(priceNaira) : 'the price you set'
 
   useEffect(() => {
     if (!open) {
@@ -61,6 +91,9 @@ export default function CreatorUploadModal({
     setDescription('')
     setSubject('')
     setClassLevel('')
+    setPriceChoice('preset')
+    setPresetPrice(DEFAULT_PRICE_NAIRA)
+    setCustomPrice('')
     setConfirmed(false)
     setPhase('idle')
     setProgress(0)
@@ -92,6 +125,9 @@ export default function CreatorUploadModal({
     setDescription('')
     setSubject('')
     setClassLevel('')
+    setPriceChoice('preset')
+    setPresetPrice(DEFAULT_PRICE_NAIRA)
+    setCustomPrice('')
     setConfirmed(false)
     setPhase('idle')
     setProgress(0)
@@ -126,6 +162,14 @@ export default function CreatorUploadModal({
       setError('Choose the class level this video is for.')
       return
     }
+    if (!priceIsValid) {
+      setError(
+        priceChoice === 'custom'
+          ? `Enter a price between ${formatNaira(MIN_PAID_PRICE_NAIRA)} and ${formatNaira(MAX_PRICE_NAIRA)}, or choose Free.`
+          : 'Choose a valid price for this lesson.',
+      )
+      return
+    }
     if (!confirmed) {
       setError('Confirm that you own the rights to this video and it is not made for kids.')
       return
@@ -144,6 +188,7 @@ export default function CreatorUploadModal({
         description: description.trim(),
         subject,
         classLevel,
+        priceNaira,
         fileName: file.name,
         mimeType: file.type || 'video/mp4',
         fileSizeBytes: file.size,
@@ -207,8 +252,9 @@ export default function CreatorUploadModal({
             Upload a video
           </h3>
           <p className="mt-1 text-sm text-[#4d554d]">
-            The file goes straight to YouTube as <strong>private</strong>. Talma publishes it
-            after an admin reviews it.
+            The file goes straight to YouTube as <strong>unlisted</strong> (not searchable). You
+            can preview it in “My videos”; Talma lists it in the library after an admin reviews
+            it.
           </p>
         </div>
 
@@ -328,12 +374,102 @@ export default function CreatorUploadModal({
               </div>
             </div>
 
+            <div>
+              <span className={labelClass}>Price students pay</span>
+              <p className="mb-2 text-xs text-[#7b857b]">
+                Pick a suggested amount, publish it for free, or enter your own price.
+              </p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {PRICE_PRESETS.map((amount) => {
+                  const selected = priceChoice === 'preset' && presetPrice === amount
+                  return (
+                    <button
+                      key={amount}
+                      type="button"
+                      disabled={busy}
+                      aria-pressed={selected}
+                      onClick={() => {
+                        setPriceChoice('preset')
+                        setPresetPrice(amount)
+                      }}
+                      className={`rounded-xl border px-3 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                        selected
+                          ? 'border-[#0a0a0a] bg-[#0a0a0a] text-white'
+                          : 'border-[#e6e9e6] bg-white text-[#4d554d] hover:bg-[#f7f9f7]'
+                      }`}
+                    >
+                      {formatNaira(amount)}
+                    </button>
+                  )
+                })}
+                <button
+                  type="button"
+                  disabled={busy}
+                  aria-pressed={priceChoice === 'free'}
+                  onClick={() => setPriceChoice('free')}
+                  className={`rounded-xl border px-3 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                    priceChoice === 'free'
+                      ? 'border-[#3a8f4d] bg-[#3a8f4d] text-white'
+                      : 'border-[#e6e9e6] bg-white text-[#4d554d] hover:bg-[#f7f9f7]'
+                  }`}
+                >
+                  Free
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  aria-pressed={priceChoice === 'custom'}
+                  onClick={() => setPriceChoice('custom')}
+                  className={`rounded-xl border px-3 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                    priceChoice === 'custom'
+                      ? 'border-[#f5c842] bg-[#fdf5d7] text-[#6b5400]'
+                      : 'border-[#e6e9e6] bg-white text-[#4d554d] hover:bg-[#f7f9f7]'
+                  }`}
+                >
+                  Enter manually
+                </button>
+              </div>
+
+              {priceChoice === 'custom' && (
+                <div className="mt-2">
+                  <label htmlFor="creator-price" className="sr-only">
+                    Custom price in naira
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-[#4d554d]">₦</span>
+                    <input
+                      id="creator-price"
+                      type="number"
+                      min={MIN_PAID_PRICE_NAIRA}
+                      max={MAX_PRICE_NAIRA}
+                      step={100}
+                      value={customPrice}
+                      disabled={busy}
+                      onChange={(event) => setCustomPrice(event.target.value)}
+                      placeholder="Enter an amount"
+                      className={fieldClass}
+                    />
+                  </div>
+                  <p className="mt-1 text-xs text-[#7b857b]">
+                    Minimum paid price is {formatNaira(MIN_PAID_PRICE_NAIRA)}. Choose Free
+                    above to publish at no cost.
+                  </p>
+                </div>
+              )}
+            </div>
+
             <div className="rounded-xl border border-[#f5c842]/40 bg-[#fdf5d7] px-4 py-3 text-sm text-[#6b5400]">
               <i className="bi bi-cash-coin me-2" />
-              {sharePercent > 0 ? (
+              {priceChoice === 'free' ? (
                 <>
-                  Talma sells this lesson for ₦2,000. You keep{' '}
-                  <strong>{sharePercent}%</strong> of every sale.
+                  This lesson will be <strong>free</strong> for every student.
+                  {sharePercent > 0 ? ' Free lessons do not earn creator revenue.' : ''}
+                </>
+              ) : sharePercent > 0 ? (
+                <>
+                  Students pay <strong>{priceLabel}</strong> once for lifetime access. You keep{' '}
+                  <strong>{sharePercent}%</strong>
+                  {priceIsValid ? ` (${formatNaira(creatorEarnings)})` : ''} of every sale.
                 </>
               ) : (
                 <>This is a platform-owned upload, so no creator payout is attached.</>

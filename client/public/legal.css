@@ -1,0 +1,191 @@
+:root {
+  --ink: #0a0a0a;
+  --muted: #4d554d;
+  --soft: #7b857b;
+  --green: #3a8f4d;
+  --green-dark: #2f6b3d;
+  --gold: #f5c842;
+  --gold-ink: #8a6d00;
+  --paper: #f7f9f7;
+  --line: #e6e9e6;
+  --white: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.7;
+}
+
+a {
+  color: var(--green-dark);
+  font-weight: 600;
+}
+
+.site-header {
+  background: var(--white);
+  border-bottom: 1px solid var(--line);
+}
+
+.site-header__inner,
+.page,
+.site-footer__inner {
+  width: min(920px, calc(100% - 40px));
+  margin: 0 auto;
+}
+
+.site-header__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 0;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.brand__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: var(--green);
+  color: var(--white);
+  font-size: 17px;
+}
+
+.site-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  font-size: 14px;
+}
+
+.site-nav a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.site-nav a:hover {
+  color: var(--green);
+}
+
+.site-nav .back {
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.page {
+  padding: 40px 0 56px;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--gold-ink);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 8px 0 4px;
+  font-size: clamp(32px, 5vw, 44px);
+  line-height: 1.15;
+}
+
+.updated {
+  margin: 0;
+  color: var(--soft);
+  font-size: 14px;
+}
+
+.legal-card {
+  margin-top: 32px;
+  padding: clamp(24px, 5vw, 40px);
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: 0 8px 30px rgba(10, 10, 10, 0.04);
+}
+
+.legal-card section + section {
+  margin-top: 32px;
+}
+
+h2 {
+  margin: 0 0 8px;
+  font-size: 20px;
+  line-height: 1.3;
+}
+
+p {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+ul {
+  margin: 0 0 12px;
+  padding-left: 22px;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+li + li {
+  margin-top: 6px;
+}
+
+strong {
+  color: var(--ink);
+}
+
+.site-footer {
+  background: var(--white);
+  border-top: 1px solid var(--line);
+}
+
+.site-footer__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 24px 0;
+  color: var(--soft);
+  font-size: 14px;
+}
+
+.site-footer__inner p {
+  margin: 0;
+  font-size: 14px;
+}
+
+@media (max-width: 560px) {
+  .site-nav {
+    gap: 10px;
+  }
+
+  .site-nav .back {
+    display: none;
+  }
+}

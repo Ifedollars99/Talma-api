@@ -123,8 +123,8 @@ export default function ReviewPanel({ onSuccess, onError }: ReviewPanelProps) {
     <div className="space-y-4">
       <div className="rounded-xl border border-[#f5c842]/50 bg-[#fdf5d7] px-4 py-3 text-sm text-[#6b5400]">
         <i className="bi bi-info-circle me-2" />
-        Each upload is <strong>private</strong> on YouTube until you approve it. Watch it in
-        YouTube Studio before publishing.
+        Each upload is <strong>unlisted</strong> and hidden from the library until you approve
+        it. Watch it in YouTube Studio before publishing.
       </div>
 
       {videos.map((video) => {
@@ -200,7 +200,7 @@ export default function ReviewPanel({ onSuccess, onError }: ReviewPanelProps) {
                       htmlFor={`review-price-${video.id}`}
                       className="block text-xs font-medium text-[#4d554d]"
                     >
-                      Price (₦)
+                      Creator&apos;s price (₦)
                     </label>
                     <input
                       id={`review-price-${video.id}`}
@@ -216,6 +216,9 @@ export default function ReviewPanel({ onSuccess, onError }: ReviewPanelProps) {
                       }
                       className="mt-1 w-28 rounded-lg border border-[#e6e9e6] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#f5c842]"
                     />
+                    <p className="mt-1 max-w-[180px] text-[11px] text-[#7b857b]">
+                      The creator chose this amount. You can adjust it before publishing.
+                    </p>
                   </div>
 
                   <div className="ml-auto flex gap-2">

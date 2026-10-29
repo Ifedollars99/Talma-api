@@ -114,6 +114,8 @@ export interface StartVideoUploadInput {
   description: string
   subject: string
   classLevel: string
+  /** What students pay; `0` publishes a free lesson. */
+  priceNaira: number
   fileName: string
   mimeType: string
   fileSizeBytes: number

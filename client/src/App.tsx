@@ -18,6 +18,8 @@ const SiwesPage = lazy(() => import('./pages/hubs/SiwesPage'))
 const AcademicHubPage = lazy(() => import('./pages/hubs/AcademicHubPage'))
 const FinalYearPage = lazy(() => import('./pages/hubs/FinalYearPage'))
 const KnowYourSchoolPage = lazy(() => import('./pages/hubs/KnowYourSchoolPage'))
+const PrivacyPage = lazy(() => import('./pages/PrivacyPage'))
+const TermsPage = lazy(() => import('./pages/TermsPage'))
 
 /** Blocks a route until the session has been restored from the refresh cookie. */
 function RequireAuth({ children }: { children: React.ReactElement }) {
@@ -62,6 +64,10 @@ export default function App() {
           <Route path="/hubs/academic" element={<AcademicHubPage />} />
           <Route path="/hubs/final-year" element={<FinalYearPage />} />
           <Route path="/hubs/know-your-school" element={<KnowYourSchoolPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/privacy-policy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/terms-of-service" element={<TermsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

@@ -364,14 +364,14 @@ export default function SignUpPage() {
               <label htmlFor="agreeTerms" className="text-sm text-white/75">
                 I agree to the
                 <a
-                  href="#terms"
+                  href="/terms.html"
                   className="text-white hover:text-white/75 transition-colors font-medium underline"
                 >
                   Terms of Service
                 </a>
                 and
                 <a
-                  href="#privacy"
+                  href="/privacy.html"
                   className="text-white hover:text-white/75 transition-colors font-medium underline"
                 >
                   Privacy Policy
