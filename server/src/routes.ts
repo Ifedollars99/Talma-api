@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { getEmailStatus } from './common/email/mailer.js'
+import { env } from './config/env.js'
 import { authRouter } from './modules/auth/auth.routes.js'
 import { usersRouter } from './modules/users/user.routes.js'
 import { postsRouter } from './modules/posts/post.routes.js'
@@ -24,6 +25,18 @@ apiRouter.get('/health', (_req, res) => {
     service: 'talma-api',
     uptime: process.uptime(),
     email: { provider: email.provider, configured: email.configured },
+    // Safe diagnostics: booleans only, never the credential values.
+    youtube: {
+      configured: env.youtubeConfigured,
+      clientIdPresent: env.YOUTUBE_CLIENT_ID.trim().length > 0,
+      clientSecretPresent: env.YOUTUBE_CLIENT_SECRET.trim().length > 0,
+      refreshTokenPresent: env.YOUTUBE_REFRESH_TOKEN.trim().length > 0,
+      channelIdPresent: env.YOUTUBE_CHANNEL_ID.trim().length > 0,
+    },
+    deploy: {
+      commit: process.env.RENDER_GIT_COMMIT ?? null,
+      serviceName: process.env.RENDER_SERVICE_NAME ?? null,
+    },
   })
 })
 
