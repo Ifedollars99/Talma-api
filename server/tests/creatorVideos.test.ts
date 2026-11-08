@@ -143,6 +143,11 @@ function stubExternalApis(
       })
     }
 
+    // YouTube resumable upload chunk — the API PUTs the file bytes to the session.
+    if (url.includes('upload/youtube/v3/videos') && method === 'PUT') {
+      return json({ id: YOUTUBE_ID, status: { uploadStatus: 'processed' } })
+    }
+
     // YouTube video lookup, privacy update, metadata update and delete.
     if (url.includes('/youtube/v3/videos')) {
       if (method === 'GET') {
@@ -156,7 +161,7 @@ function stubExternalApis(
                 channelId: 'UC_talma_test_channel',
               },
               status: {
-                privacyStatus: options.privacy ?? 'private',
+                privacyStatus: options.privacy ?? 'unlisted',
                 uploadStatus: 'processed',
               },
               contentDetails: { duration: options.duration ?? 'PT45M' },
@@ -217,11 +222,14 @@ function uploadPayload(overrides: Record<string, unknown> = {}) {
   }
 }
 
-async function startAndCompleteUpload(creator: AuthenticatedUser) {
+async function startAndCompleteUpload(
+  creator: AuthenticatedUser,
+  overrides: Record<string, unknown> = {},
+) {
   const start = await request(app)
     .post('/api/videos/uploads')
     .set('Authorization', `Bearer ${creator.accessToken}`)
-    .send(uploadPayload())
+    .send(uploadPayload(overrides))
     .expect(201)
 
   const videoId = start.body.video.id as string
@@ -314,10 +322,18 @@ describe('Creator video uploads', () => {
     expect(start.body.video.status).toBe('uploading')
     expect(start.body.video.subject).toBe('Mathematics')
     expect(start.body.video.classLevel).toBe('University 200 Level')
+    expect(start.body.video.priceKobo).toBe(200_000)
     expect(start.body.uploadUrl).toContain('upload_id=test-session')
     expect(complete.body.video.status).toBe('pending_review')
     expect(complete.body.video.locked).toBe(false)
-    expect(complete.body.video.watchUrl).toBeUndefined()
+    // The creator can preview their own upload before it is approved.
+    expect(complete.body.video.watchUrl).toContain(YOUTUBE_ID)
+
+    const creatorPreview = await request(app)
+      .get(`/api/videos/${videoId}/watch`)
+      .set('Authorization', `Bearer ${creator.accessToken}`)
+      .expect(200)
+    expect(creatorPreview.body.watchUrl).toContain(YOUTUBE_ID)
 
     // A pending upload is not visible to students.
     const publicBefore = await request(app).get('/api/videos').expect(200)
@@ -374,6 +390,55 @@ describe('Creator video uploads', () => {
     expect(purchase?.paystackSubaccountCode).toBe('ACCT_test_creator')
   })
 
+  it('lets a creator choose the price, including a free lesson', async () => {
+    stubExternalApis()
+    const { user: creator, admin } = await registerCreator()
+
+    const paid = await startAndCompleteUpload(creator, { priceNaira: 3500 })
+    expect(paid.start.body.video.priceKobo).toBe(350_000)
+
+    // Approval without a price keeps the creator's amount.
+    const approved = await request(app)
+      .post(`/api/videos/${paid.videoId}/approve`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({})
+      .expect(200)
+    expect(approved.body.video.priceKobo).toBe(350_000)
+
+    const free = await startAndCompleteUpload(creator, {
+      title: 'A free introduction',
+      priceNaira: 0,
+    })
+    expect(free.start.body.video.priceKobo).toBe(0)
+
+    const freeApproved = await request(app)
+      .post(`/api/videos/${free.videoId}/approve`)
+      .set('Authorization', `Bearer ${admin.accessToken}`)
+      .send({})
+      .expect(200)
+    expect(freeApproved.body.video.priceKobo).toBe(0)
+
+    const publicList = await request(app).get('/api/videos').expect(200)
+    const freeCard = publicList.body.videos.find(
+      (video: { id: string }) => video.id === free.videoId,
+    )
+    expect(freeCard.locked).toBe(false)
+    expect(freeCard.watchUrl).toContain(YOUTUBE_ID)
+  })
+
+  it('rejects a paid price below the Paystack minimum', async () => {
+    stubExternalApis()
+    const { user: creator } = await registerCreator()
+
+    const response = await request(app)
+      .post('/api/videos/uploads')
+      .set('Authorization', `Bearer ${creator.accessToken}`)
+      .send(uploadPayload({ priceNaira: 50 }))
+      .expect(422)
+
+    expect(JSON.stringify(response.body.error.details)).toContain('minimum paid price')
+  })
+
   it('deletes a rejected upload from YouTube and keeps it out of the catalogue', async () => {
     const { calls } = stubExternalApis()
     const { user: creator, admin } = await registerCreator()
@@ -425,5 +490,41 @@ describe('Creator video uploads', () => {
         (call) => call.method === 'DELETE' && call.url.includes('/youtube/v3/videos'),
       ),
     ).toBe(true)
+  })
+
+  it('forwards the creator file to YouTube through the API and finalizes the upload', async () => {
+    const { calls } = stubExternalApis()
+    const { user: creator } = await registerCreator()
+
+    const start = await request(app)
+      .post('/api/videos/uploads')
+      .set('Authorization', `Bearer ${creator.accessToken}`)
+      .send(uploadPayload())
+      .expect(201)
+
+    const videoId = start.body.video.id as string
+
+    const upload = await request(app)
+      .post(`/api/videos/${videoId}/upload`)
+      .set('Authorization', `Bearer ${creator.accessToken}`)
+      .attach('file', Buffer.from('fake-mp4-bytes'), {
+        filename: 'lesson.mp4',
+        contentType: 'video/mp4',
+      })
+      .expect(201)
+
+    expect(upload.body.youtubeVideoId).toBe(YOUTUBE_ID)
+    const uploadCall = calls.find(
+      (call) => call.method === 'PUT' && call.url.includes('upload_id=test-session'),
+    )
+    expect(uploadCall).toBeDefined()
+
+    const complete = await request(app)
+      .post(`/api/videos/${videoId}/upload-complete`)
+      .set('Authorization', `Bearer ${creator.accessToken}`)
+      .send({ youtubeVideoId: YOUTUBE_ID })
+      .expect(200)
+
+    expect(complete.body.video.status).toBe('pending_review')
   })
 })

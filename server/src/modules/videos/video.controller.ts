@@ -1,5 +1,8 @@
 import type { Request, Response } from 'express'
 import { asyncHandler } from '../../common/middleware/errorHandler.js'
+import { AppError } from '../../common/errors/AppError.js'
+import { env } from '../../config/env.js'
+import multer from 'multer'
 import { isValidPaystackSignature } from '../payments/paystack.client.js'
 import * as videoService from './video.service.js'
 import type {
@@ -87,6 +90,36 @@ export async function startUpload(req: Request, res: Response): Promise<void> {
   )
   res.status(201).json(result)
 }
+
+/** In-memory uploader for creator video files — the bytes go straight to YouTube. */
+export const creatorVideoUploader = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: env.VIDEO_MAX_UPLOAD_BYTES },
+  fileFilter: (_req, file, cb) => {
+    if (!file.mimetype.startsWith('video/')) {
+      cb(AppError.badRequest('Only video files can be uploaded to the library.'))
+      return
+    }
+    cb(null, true)
+  },
+})
+
+/**
+ * POST /api/videos/:id/upload — receives the creator's video file and forwards
+ * the bytes to the YouTube resumable session. The browser sends the file here
+ * (same origin through the Vite proxy) instead of to Google directly, which
+ * avoids the CORS preflight block that broke the direct-to-Google flow.
+ */
+export const uploadVideo = asyncHandler(async (req: Request, res: Response) => {
+  const file = req.file
+  if (!file) throw AppError.badRequest('No file was uploaded')
+  const { youtubeVideoId } = await videoService.uploadVideoFileToYouTube(
+    req.params.id as string,
+    file,
+    viewerOf(req),
+  )
+  res.status(201).json({ youtubeVideoId })
+})
 
 /** POST /api/videos/:id/upload-complete — the uploader finalizes the YouTube id. */
 export async function completeUpload(req: Request, res: Response): Promise<void> {

@@ -133,6 +133,21 @@ export function useStartVideoUpload() {
   })
 }
 
+/**
+ * Sends the creator's video file to the API, which forwards the bytes to the
+ * YouTube resumable session. The browser talks to Talma (same origin) instead of
+ * to Google directly, avoiding the CORS block on Google's resumable endpoint.
+ */
+export function useUploadVideoFile() {
+  return useMutation({
+    mutationFn: ({ id, file }: { id: string; file: File }) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      return api.upload<{ youtubeVideoId: string }>(`/videos/${id}/upload`, formData)
+    },
+  })
+}
+
 /** Finalizes the upload after Google returns the new video id. */
 export function useCompleteVideoUpload() {
   const queryClient = useQueryClient()

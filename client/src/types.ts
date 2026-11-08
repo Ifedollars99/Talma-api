@@ -308,6 +308,11 @@ export interface VideoUploadStart {
   uploadExpiresAt: string
 }
 
+/** Returned once the API has forwarded the file bytes to YouTube. */
+export interface YoutubeUploadResponse {
+  youtubeVideoId: string
+}
+
 export type VideoPaymentStatus = 'pending' | 'paid' | 'failed' | 'abandoned'
 
 export interface VideoPurchase {

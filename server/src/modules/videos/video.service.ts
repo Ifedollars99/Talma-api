@@ -172,10 +172,9 @@ function toVideoDto(
   // Free published videos are immediately watchable; managers can preview
   // their own work. Nothing unpublished is watchable through the buyer flow.
   const purchased = options.purchased || (video.priceKobo === 0 && video.published)
-  const canWatch =
-    purchased ||
-    isAdmin ||
-    (isCreator && video.published && Boolean(video.youtubeVideoId))
+  // Creators can preview their own upload as soon as YouTube has it, even
+  // while it is unlisted and waiting for review.
+  const canWatch = purchased || isAdmin || (isCreator && Boolean(video.youtubeVideoId))
   const status = statusOf(video)
 
   return {
@@ -280,7 +279,7 @@ export async function listMyVideos(viewer: VideoViewer): Promise<VideoDto[]> {
   )
 }
 
-/** Admin review queue: uploads that finished on YouTube but are still private. */
+/** Admin review queue: uploads that finished on YouTube but are not published. */
 export async function listReviewQueue(): Promise<VideoDto[]> {
   const videos = await VideoModel.find({ status: 'pending_review' })
     .sort({ createdAt: 1 })
@@ -312,10 +311,7 @@ export async function getWatchUrl(
 
   const isAdmin = viewer.role === 'admin'
   const isCreator = isCreatorOf(video, viewer)
-  if (!video.published && !isAdmin) {
-    if (isCreator) {
-      throw AppError.forbidden('This video is still under review.')
-    }
+  if (!video.published && !isAdmin && !isCreator) {
     throw AppError.notFound('Video not found')
   }
 
@@ -325,7 +321,7 @@ export async function getWatchUrl(
 
   const purchased =
     video.priceKobo === 0 || (viewer.id ? await hasPaidAccess(viewer.id, id) : false)
-  if (!purchased && !isAdmin && !(isCreator && video.published)) {
+  if (!purchased && !isAdmin && !isCreator) {
     throw AppError.paymentRequired('Buy this video before you can watch it.')
   }
 
@@ -360,12 +356,16 @@ export async function startVideoUpload(
     )
   }
 
+  // Unlisted (rather than private) so the creator can preview their own
+  // upload in the app before an administrator approves it. Unlisted videos do
+  // not appear on the channel, in search or in recommendations, and Talma
+  // never exposes the URL to other users until they own the video.
   const { uploadUrl } = await initiateResumableUpload({
     title: input.title,
     description: input.description,
     mimeType: input.mimeType,
     sizeBytes: input.fileSizeBytes,
-    privacyStatus: 'private',
+    privacyStatus: 'unlisted',
     madeForKids: input.madeForKids,
   })
 
@@ -379,7 +379,7 @@ export async function startVideoUpload(
     youtubeUploadUrl: uploadUrl,
     uploadExpiresAt,
     durationSeconds: 0,
-    priceKobo: env.VIDEO_DEFAULT_PRICE_KOBO,
+    priceKobo: Math.round(input.priceNaira * 100),
     currency: env.PAYSTACK_CURRENCY,
     published: false,
     status: 'uploading',
@@ -407,6 +407,91 @@ export async function startVideoUpload(
     uploadUrl,
     uploadExpiresAt: uploadExpiresAt.toISOString(),
   }
+}
+
+/** Size of a single YouTube resumable-upload chunk, in bytes. */
+const YOUTUBE_UPLOAD_CHUNK_SIZE_BYTES = 8 * 1024 * 1024
+
+/** First byte index to resume from, derived from a `Range` response header. */
+function resumeOffset(range: string | null, fallback: number): number {
+  if (!range) return fallback
+  const match = /bytes=0-(\d+)/i.exec(range)
+  return match ? Number(match[1]) + 1 : fallback
+}
+
+/**
+ * Sends a creator's video file to the YouTube resumable session the API created
+ * when the upload started. The browser hands the bytes to Talma through its own
+ * API (same origin via the Vite proxy) instead of sending them straight to
+ * Google, so the transfer is no longer subject to the browser CORS preflight
+ * that blocked the direct-to-Google chunk PUTs.
+ */
+export async function uploadVideoFileToYouTube(
+  id: string,
+  file: Express.Multer.File,
+  viewer: VideoViewer,
+): Promise<{ youtubeVideoId: string }> {
+  const video = await VideoModel.findById(id)
+  if (!video) throw AppError.notFound('Video not found')
+  assertCanManage(video, viewer)
+  if (video.status !== 'uploading') {
+    throw AppError.conflict('This upload is not waiting to be finalized.')
+  }
+  if (!video.youtubeUploadUrl) {
+    throw AppError.conflict('The YouTube upload session is missing. Start the upload again.')
+  }
+  if (!file.size) throw AppError.badRequest('The selected file is empty.')
+
+  const uploadUrl = video.youtubeUploadUrl
+  const mimeType = file.mimetype || video.fileMimeType || 'video/mp4'
+  const buffer = file.buffer ?? Buffer.alloc(0)
+  const total = file.size
+  let offset = 0
+  let youtubeVideoId = ''
+
+  while (!youtubeVideoId) {
+    const end = Math.min(offset + YOUTUBE_UPLOAD_CHUNK_SIZE_BYTES, total) - 1
+    const response = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': mimeType,
+        'Content-Range': `bytes ${offset}-${end}/${total}`,
+        'X-Upload-Content-Type': mimeType,
+      },
+      body: buffer.subarray(offset, end + 1),
+    })
+
+    if (response.status === 200 || response.status === 201) {
+      const payload = (await response.json().catch(() => null)) as { id?: unknown } | null
+      youtubeVideoId = typeof payload?.id === 'string' ? payload.id : ''
+      break
+    }
+    if (response.status === 308) {
+      // Resume from the byte position Google reported as received.
+      offset = resumeOffset(response.headers.get('range'), end + 1)
+      continue
+    }
+
+    let detail = ''
+    try {
+      const payload = (await response.json()) as {
+        error?: { message?: string; errors?: Array<{ reason?: string }> }
+      }
+      detail = payload.error?.errors?.[0]?.reason ?? payload.error?.message ?? ''
+    } catch {
+      // Google did not answer with JSON; keep the generic failure message.
+    }
+    if (response.status === 404 || response.status === 410) {
+      throw AppError.badGateway('The YouTube upload session expired. Start the upload again.')
+    }
+    throw AppError.badGateway(`YouTube could not receive the upload${detail ? `: ${detail}` : '.'}`)
+  }
+
+  if (!/^[A-Za-z0-9_-]{11}$/.test(youtubeVideoId)) {
+    throw AppError.badGateway('YouTube finished the upload but returned no video id.')
+  }
+
+  return { youtubeVideoId }
 }
 
 async function forcePrivate(youtubeVideoId: string, privacyStatus: string): Promise<void> {
@@ -463,16 +548,16 @@ export async function completeVideoUpload(
     throw AppError.badRequest('Videos must be one hour or shorter.')
   }
 
-  // A session started as private should stay private until an admin approves
-  // it, even if the browser somehow changed the setting. If we cannot secure
-  // it, remove the YouTube copy rather than leave it public.
-  if (info.privacyStatus !== 'private') {
+  // Uploads must stay unlisted until an administrator publishes them: never
+  // public. If the browser somehow changed the privacy setting, force it back.
+  // If that fails, remove the YouTube copy rather than leave it exposed.
+  if (info.privacyStatus !== 'unlisted') {
     try {
-      await updateVideoPrivacy(youtubeVideoId, 'private')
+      await updateVideoPrivacy(youtubeVideoId, 'unlisted')
     } catch (error) {
       logger.warn(
         { err: error, youtubeVideoId },
-        'Could not force an uploaded YouTube video back to private',
+        'Could not force an uploaded YouTube video back to unlisted',
       )
       await deleteYouTubeVideo(youtubeVideoId).catch((deleteError) => {
         logger.warn(
@@ -483,7 +568,7 @@ export async function completeVideoUpload(
       video.status = 'failed'
       await video.save()
       throw AppError.badGateway(
-        'Talma could not make the YouTube copy private, so the upload was removed. Please try again.',
+        'Talma could not secure the YouTube copy, so the upload was removed. Please try again.',
       )
     }
   }
@@ -505,7 +590,7 @@ export async function completeVideoUpload(
   return toVideoDto(video.toObject(), { purchased: false, viewer })
 }
 
-/** Admin-only: switch an approved private upload to unlisted and publish it. */
+/** Admin-only: publish an approved upload at the creator's price. */
 export async function approveVideo(
   id: string,
   priceNaira: number | undefined,
@@ -598,7 +683,7 @@ export async function rejectVideo(
     } catch (error) {
       logger.warn(
         { err: error, videoId: String(video._id), youtubeVideoId: video.youtubeVideoId },
-        'Could not delete the rejected YouTube video; it remains private on the channel',
+        'Could not delete the rejected YouTube video; it remains on the channel',
       )
     }
   }

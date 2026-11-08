@@ -59,6 +59,15 @@ videosRouter.post(
   controller.startUpload,
 )
 videosRouter.post(
+  '/:id/upload',
+  requireAuth,
+  requireCreator,
+  writeLimiter,
+  controller.creatorVideoUploader.single('file'),
+  validate({ params: videoIdParamSchema }),
+  controller.uploadVideo,
+)
+videosRouter.post(
   '/:id/upload-complete',
   requireAuth,
   requireCreator,

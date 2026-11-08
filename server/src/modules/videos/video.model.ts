@@ -13,8 +13,9 @@ export type VideoStatus =
  *
  * New videos are uploaded to Talma's YouTube channel through a resumable
  * session URL: the browser sends the file straight to Google and the API only
- * stores metadata. The video stays `private` on YouTube until an administrator
- * approves it, then it is switched to `unlisted` and offered in the catalogue.
+ * stores metadata. The video is `unlisted` on YouTube so its creator can
+ * preview it, but it is only offered in the catalogue after an administrator
+ * approves it. The creator chooses the price at upload time.
  */
 export interface VideoDocument {
   title: string

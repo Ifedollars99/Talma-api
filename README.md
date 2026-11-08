@@ -39,7 +39,7 @@ MongoDB** API on the back end, keeping the original design, content and behaviou
 | **Profile** | Twitter-style profile screen at `/u/:username` with cover, avatar, bio, gender, country/state, creator badge and full post timeline. Editable avatar, bio and profile details, “View profile” in the avatar menu, settings modal (Account, Region & language, Appearance, Privacy), light/dark app theme in Settings only, password strength meter and account deletion. |
 | **Community feed** | For You / Following tabs, creator search, create posts with text, subject and image/video uploads, like/unlike, delete your own posts, desktop and X-style mobile layouts, floating action button on mobile. |
 | **Courses** | Country → University → Campus → Faculty → Department → Level → Course browser with search, add faculty, add course (with PDF upload), in-app PDF viewer and download. |
-| **Paid videos** | Approved creators upload lessons from the browser; Talma sends the file straight to YouTube as a private video, an admin reviews it, then it becomes an unlisted, locked card. Students pay ₦2,000 once through Paystack and the creator receives 70% via a Paystack subaccount. Lifetime access per video, server-enforced entitlement. |
+| **Paid videos** | Approved creators upload lessons through the app; the API receives the file and PUTs it straight to YouTube as an unlisted video via a one-time resumable session, then the creator can preview it in the app. The creator picks the price — a suggested amount, a custom amount, or Free — then an admin reviews it and publishes the locked card. Students pay once through Paystack and the creator receives 70% via a Paystack subaccount. Lifetime access per video, server-enforced entitlement. |
 | **Messages & communities** | Inbox with search and read state, *My Communities*, *Explore* with category filters, join/leave, create community. |
 | **Tests** | Pick a faculty → department → answer a 10-question practice test → server-graded score. |
 | **Assignments** | Assignment list with per-student submission state. |
@@ -206,7 +206,7 @@ dashboard is not empty on a fresh install. Re-running the seed never overwrites 
 | `PAYSTACK_SECRET_KEY` | — | Paystack secret key (`sk_test_…` locally, `sk_live_…` in production). Empty disables purchases. |
 | `PAYSTACK_CURRENCY` | `NGN` | Currency sent to Paystack. Must match the currency of your Paystack account. |
 | `PAYSTACK_CALLBACK_URL` | `${CLIENT_APP_URL}/mycamp` | Optional override for the post-checkout redirect. |
-| `VIDEO_DEFAULT_PRICE_KOBO` | `200000` | Default video price in kobo (₦2,000). |
+| `VIDEO_DEFAULT_PRICE_KOBO` | `200000` | Fallback price in kobo (₦2,000) when a creator does not choose one. |
 | `VIDEO_MAX_UPLOAD_BYTES` | `4294967296` | Maximum creator upload size (4 GiB). |
 | `PLATFORM_VIDEO_SHARE_PERCENT` | `30` | Talma's cut of each video sale; creators receive the remainder. |
 | `YOUTUBE_CLIENT_ID` | — | Google OAuth desktop-app client id. Required for creator uploads. |
@@ -330,7 +330,8 @@ so large files do not pass through the API.
 3. Approving a creator creates a Paystack **subaccount** using the bank details they submitted. Each
    checkout passes that subaccount to Paystack, which pays the creator directly. The platform keeps
    `PLATFORM_VIDEO_SHARE_PERCENT` (30% by default) and bears Paystack's processing fee
-   (`bearer: account`). A ₦2,000 sale therefore pays the creator ₦1,400 before tax.
+   (`bearer: account`). A ₦2,000 sale therefore pays the creator ₦1,400 before tax; a custom
+   creator price follows the same split.
 4. Live payments and creator payouts require a Paystack business account with completed KYC.
 
 ### 2. YouTube channel and OAuth
@@ -365,13 +366,15 @@ so large files do not pass through the API.
    approves. Talma creates the Paystack subaccount; the creator can now upload.
 3. **Upload** — the creator opens **Videos → Upload video**, chooses an MP4/WebM/MOV up to 4 GB and
    one hour, selects the curriculum **Subject** (for example Mathematics) and **Class level** (Primary
-   1 through University 600 Level), and confirms they own the rights. The browser sends the file to
-   YouTube in 8 MiB chunks
-   with progress and automatic resume. The YouTube video is **private** and does not appear in the
-   app yet.
+   1 through University 600 Level), and sets the price: a suggested amount (₦500, ₦1,000, ₦2,000 or
+   ₦5,000), a custom amount, or **Free**. The browser sends the file to the Talma API (same origin
+   through the Vite proxy), which PUTs it to YouTube in 8 MiB chunks with progress and automatic
+   resume. The YouTube video is **unlisted** (not searchable or listed on the
+   channel), so the creator can preview it in **My videos** while it waits for review; other users
+   cannot see it in Talma yet.
 4. **Review** — the admin sees the upload in **Review**, opens it in YouTube Studio, and either
-   approves it (switches it to **unlisted** and publishes the card at ₦2,000) or rejects it (deletes
-   the YouTube copy and shows the creator the reason).
+   approves it (publishes the card at the creator's price, which the admin may adjust) or rejects it
+   (deletes the YouTube copy and shows the creator the reason).
 5. **Buy** — a student taps **Unlock**. The API creates a Paystack transaction with the server-side
    price and the creator's subaccount, then redirects to hosted checkout. Paystack calls the webhook
    and sends the buyer back to `/mycamp`; Talma verifies the transaction and unlocks the video. The
@@ -521,13 +524,13 @@ only** — feed post media is unchanged and still accepts photos and videos.
 | `GET` | `/mine` | Bearer | The caller's own uploads in every state (creators/admins). |
 | `GET` | `/review` | Admin | Uploads that finished on YouTube and are waiting for approval. |
 | `GET` | `/:id` | optional | One video. Pending uploads are visible only to their creator and admins. |
-| `GET` | `/:id/thumbnail` | – | Proxied YouTube thumbnail; a placeholder is served for private uploads. |
-| `GET` | `/:id/watch` | Bearer | Returns the YouTube URL only when the video is free, purchased, owned or viewed by an admin. Otherwise `402 PAYMENT_REQUIRED`. |
+| `GET` | `/:id/thumbnail` | – | Proxied YouTube thumbnail; a placeholder is served for unreviewed uploads. |
+| `GET` | `/:id/watch` | Bearer | Returns the YouTube URL only when the video is free, purchased, owned or viewed by an admin. The creator can preview their own upload before approval. Otherwise `402 PAYMENT_REQUIRED`. |
 | `POST` | `/:id/checkout` | Bearer | Creates a pending purchase and returns Paystack's `authorizationUrl`. The amount and creator split are read from the database. |
 | `POST` | `/purchases/verify` | Bearer | Reconciles a payment after Paystack redirects the buyer back. Idempotent. |
-| `POST` | `/uploads` | Creator | Reserve a YouTube resumable upload session (`title`, `description`, `subject`, `classLevel`, `fileName`, `mimeType`, `fileSizeBytes`, `madeForKids`). Returns a one-time `uploadUrl` for the browser. |
+| `POST` | `/uploads` | Creator | Reserve a YouTube resumable upload session (`title`, `description`, `subject`, `classLevel`, `priceNaira`, `fileName`, `mimeType`, `fileSizeBytes`, `madeForKids`). `priceNaira` is 0 for a free lesson or at least 100 for a paid one. Returns a one-time `uploadUrl` for the browser. |
 | `POST` | `/:id/upload-complete` | Creator | Verify the new YouTube id, duration and channel, then queue the video for review. |
-| `POST` | `/:id/approve` | Admin | Switch the private YouTube video to unlisted and publish the card (optional `priceNaira`). |
+| `POST` | `/:id/approve` | Admin | Publish the reviewed card at the creator's price (optional `priceNaira` overrides it). |
 | `POST` | `/:id/reject` | Admin | Delete the YouTube copy and mark the upload rejected with a reason. |
 | `POST` | `/` | Admin | Legacy: add an existing video by pasting a YouTube link. |
 | `PATCH` | `/:id` | Admin | Update metadata, price or visibility; published creator videos also update YouTube. |
@@ -602,7 +605,8 @@ covers:
   `402` guard on watch, server-side pricing, checkout initialization, webhook signature rejection,
   signed-webhook idempotency, return-from-Paystack reconciliation and cascade deletion;
 * creator videos: creator onboarding and Paystack subaccount creation, the approved-creator upload
-  guard, resumable session initialization, YouTube channel verification, the one-hour limit, the
+  guard, resumable session initialization, YouTube channel verification, the one-hour limit,
+  creator-chosen prices (suggested, custom and free), creator preview before approval, the
   pending-review state being hidden from students, admin approve/reject, creator revenue-split
   checkout and rejection deleting the YouTube copy.
 
@@ -646,7 +650,7 @@ npm run build
 | **OpenAI-compatible AI** | Optional | Powers the signed-in LINT assistant through the server proxy. Without a server key it falls back to the free Pollinations text model. Pictures need a vision-capable model — set `OPENAI_API_KEY`, `OPENAI_BASE_URL` and `OPENAI_MODEL` in `server/.env` (for example Gemini 2.5 Flash or Llama 4 Scout). |
 | **OpenStreetMap / Nominatim** | Optional | Used by the *Know Your School* place search and by the Leaflet map tiles. |
 | **Paystack** | Optional | Paid video library and creator splits. Set `PAYSTACK_SECRET_KEY`, `PAYSTACK_CURRENCY` and a public HTTPS webhook URL. Buyers pay on Paystack's hosted checkout and return to `/mycamp`; access is granted by the signed webhook. Creator approvals create Paystack subaccounts using the bank details in the application. |
-| **YouTube Data API v3** | Optional | Approved creator uploads. Set the OAuth client id/secret, `YOUTUBE_REFRESH_TOKEN` and `YOUTUBE_CHANNEL_ID`. The API creates resumable sessions; the browser uploads directly to Google. Review happens in YouTube Studio before a video is switched to unlisted. |
+| **YouTube Data API v3** | Optional | Approved creator uploads. Set the OAuth client id/secret, `YOUTUBE_REFRESH_TOKEN` and `YOUTUBE_CHANNEL_ID`. The API creates resumable sessions; the browser uploads directly to Google as unlisted so the creator can preview it. Review happens in YouTube Studio before the card is published in Talma. |
 | **Wikimedia Commons** | Optional | The landing page hotlinks campus photographs from Wikimedia Commons. |
 | **Email delivery** | Optional | Resend is recommended for production; SMTP is supported. Development falls back to an Ethereal preview inbox when no credentials are set. Configure `RESEND_API_KEY`/`MAIL_FROM` or SMTP before real users need verification or reset emails. |
 | **ArcGIS imagery** | Optional | Satellite tiles for the campus map. |
@@ -664,10 +668,10 @@ npm run build
   YouTube's terms describe the service as personal, non-commercial use; check the current terms
   before charging at scale. The channel owner bears the risk of termination or copyright strikes for
   creator uploads.
-* **Talma does not store or transcode video files.** The creator's browser uploads directly to
-  YouTube through a resumable session; the API only stores metadata and a one-time session URL. A
-  YouTube channel must be phone-verified to upload videos longer than 15 minutes, and the default
-  YouTube quota allows roughly 100 uploads per day. The existing 25 MB uploader is for feed images,
+* **Talma does not store or transcode video files.** The creator's app uploads through a resumable
+  session the API created; the API forwards the file bytes to YouTube, so the large files never pass
+  through the Talma API itself. A YouTube channel must be phone-verified to upload videos longer than
+  15 minutes, and the default YouTube quota allows roughly 100 uploads per day. The existing 25 MB uploader is for feed images,
   short feed videos and course PDFs only.
 * **Creator payouts are only as good as the bank details and Paystack KYC.** Talma creates a
   subaccount with `percentage_charge` set to the platform's cut and asks Paystack to settle the

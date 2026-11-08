@@ -61,6 +61,18 @@ const uploadTitleField = z
   .min(2, 'A title is required')
   .max(100, 'YouTube titles are limited to 100 characters')
 
+/**
+ * Creators choose what students pay. `0` means the lesson is free; any paid
+ * lesson must clear Paystack's minimum charge so checkout cannot fail later.
+ */
+const creatorPriceField = z.coerce
+  .number()
+  .min(0, 'The price cannot be negative')
+  .max(1_000_000, 'The price cannot exceed ₦1,000,000')
+  .refine((value) => value === 0 || value >= 100, {
+    message: 'The minimum paid price is ₦100. Choose Free for a free lesson.',
+  })
+
 const mimeTypeField = z
   .string()
   .trim()
@@ -76,6 +88,8 @@ export const startVideoUploadSchema = z.object({
   description: descriptionField.default(''),
   subject: subjectField,
   classLevel: classLevelField,
+  /** What students pay for lifetime access; `0` publishes a free lesson. */
+  priceNaira: creatorPriceField.default(env.VIDEO_DEFAULT_PRICE_KOBO / 100),
   fileName: z.string().trim().min(1).max(255),
   mimeType: mimeTypeField,
   fileSizeBytes: z.coerce

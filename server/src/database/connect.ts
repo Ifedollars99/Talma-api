@@ -14,7 +14,10 @@ export async function connectDatabase(uri: string = env.MONGODB_URI): Promise<ty
   mongoose.set('strictQuery', true)
 
   const connection = await mongoose.connect(uri, {
-    serverSelectionTimeoutMS: 10_000,
+    // Atlas can take a while to elect a primary on slow mobile/fibre links.
+    // The default 10s is too short here and makes the API exit at startup.
+    serverSelectionTimeoutMS: 30_000,
+    connectTimeoutMS: 30_000,
     maxPoolSize: 20,
     autoIndex: !env.isProduction,
   })

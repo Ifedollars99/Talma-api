@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { ApiError } from '../../lib/apiClient'
-import { uploadFileToYouTube, YouTubeUploadError } from '../../lib/youtubeUpload'
 import { VIDEO_CLASS_LEVELS, VIDEO_SUBJECTS } from '../../lib/videoOptions'
 import {
   useCompleteVideoUpload,
   useStartVideoUpload,
+  useUploadVideoFile,
 } from '../../hooks/useVideos'
 import Modal from '../ui/Modal'
 
@@ -42,6 +42,7 @@ export default function CreatorUploadModal({
   sharePercent = 70,
 }: CreatorUploadModalProps) {
   const startUpload = useStartVideoUpload()
+  const uploadVideoFile = useUploadVideoFile()
   const completeUpload = useCompleteVideoUpload()
   const abortRef = useRef<AbortController | null>(null)
 
@@ -56,6 +57,7 @@ export default function CreatorUploadModal({
   const [confirmed, setConfirmed] = useState(false)
   const [phase, setPhase] = useState<Phase>('idle')
   const [progress, setProgress] = useState(0)
+  const [retryNote, setRetryNote] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const busy = phase === 'starting' || phase === 'uploading' || phase === 'finalizing'
@@ -97,6 +99,7 @@ export default function CreatorUploadModal({
     setConfirmed(false)
     setPhase('idle')
     setProgress(0)
+    setRetryNote(null)
     setError(null)
   }, [open])
 
@@ -131,6 +134,7 @@ export default function CreatorUploadModal({
     setConfirmed(false)
     setPhase('idle')
     setProgress(0)
+    setRetryNote(null)
     setError(null)
   }
 
@@ -181,6 +185,7 @@ export default function CreatorUploadModal({
     abortRef.current = controller
     setPhase('starting')
     setProgress(0)
+    setRetryNote(null)
 
     try {
       const started = await startUpload.mutateAsync({
@@ -199,26 +204,24 @@ export default function CreatorUploadModal({
 
       setPhase('uploading')
 
-      const result = await uploadFileToYouTube(started.uploadUrl, file, {
-        mimeType: file.type || 'video/mp4',
-        signal: controller.signal,
-        onProgress: (_uploaded, _total, percent) => setProgress(percent),
+      const { youtubeVideoId } = await uploadVideoFile.mutateAsync({
+        id: started.video.id,
+        file,
       })
 
       setPhase('finalizing')
       await completeUpload.mutateAsync({
         id: started.video.id,
-        youtubeVideoId: result.id,
+        youtubeVideoId,
       })
 
       setPhase('done')
       onUploaded()
     } catch (caught) {
+      setRetryNote(null)
       if (caught instanceof DOMException && caught.name === 'AbortError') {
         setError('Upload cancelled. The draft entry is still in “My videos” — you can remove it.')
       } else if (caught instanceof ApiError) {
-        setError(caught.message)
-      } else if (caught instanceof YouTubeUploadError) {
         setError(caught.message)
       } else if (caught instanceof Error) {
         setError(caught.message)
@@ -508,6 +511,9 @@ export default function CreatorUploadModal({
                     style={{ width: `${Math.max(2, progress)}%` }}
                   />
                 </div>
+                {retryNote && (
+                  <p className="text-xs font-medium text-[#9a6b00]">{retryNote}</p>
+                )}
                 <p className="text-xs text-[#7b857b]">
                   Keep this tab open. The upload resumes automatically if the connection drops.
                 </p>
