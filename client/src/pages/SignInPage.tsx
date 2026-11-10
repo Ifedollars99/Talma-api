@@ -64,7 +64,11 @@ export default function SignInPage() {
       setMessageType('success')
       setEmail('')
       setPassword('')
-      window.setTimeout(() => navigate('/mycamp'), 1200)
+      setLoading(false)
+      // Rewrite the current (auth) history entry as the home entry and navigate
+      // with replace so the browser Back button never returns to the auth pages.
+      window.history.replaceState(null, '', '/mycamp')
+      window.setTimeout(() => navigate('/mycamp', { replace: true }), 1200)
     } catch (error) {
       setMessage(
         error instanceof ApiError

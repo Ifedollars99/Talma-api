@@ -16,8 +16,6 @@ import {
 import { useCreatorApplications, useCreatorProfile } from '../../hooks/useCreators'
 import { useToast } from '../ui/useToast'
 import Modal from '../ui/Modal'
-import CreatorUploadModal from './CreatorUploadModal'
-import CreatorVerificationModal from './CreatorVerificationModal'
 import CreatorApplicationsPanel from './CreatorApplicationsPanel'
 import ReviewPanel from './ReviewPanel'
 import VideoCard from './VideoCard'
@@ -44,7 +42,6 @@ export default function VideosView({
     ? 'approved'
     : (creatorProfile?.status ?? user?.creatorStatus ?? 'none')
   const isCreator = creatorStatus === 'approved'
-  const isUploader = isAdmin || isCreator
   // Administrators already see every status in the Library, so a separate
   // "My videos" tab would just duplicate it.
   const showMineTab = isCreator && !isAdmin
@@ -61,8 +58,6 @@ export default function VideosView({
 
   const [tab, setTab] = useState<Tab>('library')
   const [payingId, setPayingId] = useState<string | null>(null)
-  const [uploadOpen, setUploadOpen] = useState(false)
-  const [verifyOpen, setVerifyOpen] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<VideoItem | null>(null)
   const [deleting, setDeleting] = useState<VideoItem | null>(null)
@@ -162,7 +157,6 @@ export default function VideosView({
   const mineCount = mine.data?.videos.length ?? 0
   const reviewCount =
     (review.data?.videos.length ?? 0) + (creatorApplications.data?.creators.length ?? 0)
-  const profileLoading = !isAdmin && profileQuery.isLoading
 
   return (
     <div className="space-y-6">
@@ -180,14 +174,6 @@ export default function VideosView({
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => (isUploader ? setUploadOpen(true) : setVerifyOpen(true))}
-            className="inline-flex items-center gap-2 rounded-xl bg-[#f5c842] px-5 py-2.5 font-semibold text-[#0a0a0a] shadow-md transition-colors hover:bg-[#e9b92b]"
-          >
-            <i className="bi bi-cloud-arrow-up" />
-            Upload video
-          </button>
           {isAdmin && (
             <button
               type="button"
@@ -196,16 +182,6 @@ export default function VideosView({
             >
               <i className="bi bi-link-45deg" />
               Add YouTube link
-            </button>
-          )}
-          {!isAdmin && !isCreator && !profileLoading && creatorStatus !== 'pending' && (
-            <button
-              type="button"
-              onClick={() => setVerifyOpen(true)}
-              className="inline-flex items-center gap-2 rounded-xl border border-[#f5c842] bg-[#fdf5d7] px-4 py-2.5 font-semibold text-[#6b5400] transition-colors hover:bg-[#fbeeb8]"
-            >
-              <i className="bi bi-patch-check" />
-              Verify to become a creator
             </button>
           )}
           {!isAdmin && creatorStatus === 'pending' && (
@@ -358,16 +334,6 @@ export default function VideosView({
                     ? 'Creator uploads will appear here after they finish processing on YouTube.'
                     : 'Check back soon — lessons are being added to the library.'}
               </p>
-              {tab === 'mine' && (
-                <button
-                  type="button"
-                  onClick={() => (isUploader ? setUploadOpen(true) : setVerifyOpen(true))}
-                  className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#f5c842] px-5 py-2.5 font-semibold text-[#0a0a0a] hover:bg-[#e9b92b]"
-                >
-                  <i className="bi bi-cloud-arrow-up" />
-                  Upload video
-                </button>
-              )}
             </div>
           )}
 
@@ -389,26 +355,6 @@ export default function VideosView({
           )}
         </>
       )}
-
-      <CreatorUploadModal
-        open={uploadOpen}
-        onClose={() => setUploadOpen(false)}
-        sharePercent={isAdmin ? 0 : sharePercent}
-        onUploaded={() => {
-          setUploadOpen(false)
-          setTab(showMineTab ? 'mine' : 'library')
-          showSuccess('Upload complete — sent to an admin for review.')
-        }}
-      />
-
-      <CreatorVerificationModal
-        open={verifyOpen}
-        onClose={() => setVerifyOpen(false)}
-        onVerified={() => {
-          void profileQuery.refetch()
-          showSuccess('You are now a verified creator. Upload your first video!')
-        }}
-      />
 
       <Modal
         open={formOpen}

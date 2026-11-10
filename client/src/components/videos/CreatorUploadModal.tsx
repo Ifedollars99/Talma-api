@@ -243,7 +243,7 @@ export default function CreatorUploadModal({
       open={open}
       onClose={close}
       closeOnBackdrop={!busy}
-      className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl"
+      className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"
       labelledBy="creator-upload-title"
     >
       <form onSubmit={(event) => void submit(event)} className="space-y-4">

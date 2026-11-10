@@ -1,20 +1,18 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useCreatePost, useDeletePost, useFeed, useToggleLike } from '../../hooks/usePosts'
-import { useUploadPostMedia } from '../../hooks/useUploads'
-import { ApiError } from '../../lib/apiClient'
+import { useDeletePost, useFeed, useToggleLike } from '../../hooks/usePosts'
 import { useAuth } from '../../lib/auth'
-import { VIDEO_CLASS_LEVELS, VIDEO_SUBJECTS } from '../../lib/videoOptions'
 import type { FeedTab, Message } from '../../types'
 import Avatar from '../profile/Avatar'
 import Modal from '../ui/Modal'
-import CreatorVerificationModal from '../videos/CreatorVerificationModal'
 
 interface DashboardFeedProps {
   messages: Message[]
   notifications: number
   username: string
   onOpenSearch: () => void
+  /** Opens the creator upload flow (Home - Upload a video). */
+  onUpload: () => void
 }
 
 const FEED_TABS: { id: FeedTab; label: string }[] = [
@@ -40,36 +38,25 @@ export default function DashboardFeed({
   notifications,
   username,
   onOpenSearch,
+  onUpload,
 }: DashboardFeedProps) {
   const [feedTab, setFeedTab] = useState<FeedTab>('foryou')
-  const [showCreatePost, setShowCreatePost] = useState(false)
   const [postToDelete, setPostToDelete] = useState<string | null>(null)
-  const [verifyOpen, setVerifyOpen] = useState(false)
 
   const { user } = useAuth()
   const isCreator = user?.creatorStatus === 'approved' || user?.role === 'admin'
 
   const { data, isLoading, isError } = useFeed({ tab: feedTab })
-  const createPost = useCreatePost()
   const deletePost = useDeletePost()
   const toggleLike = useToggleLike()
 
   const posts = useMemo(() => data?.items ?? [], [data])
-
-  const openComposer = () => {
-    setShowCreatePost(true)
-  }
-
-  const closeComposer = () => {
-    setShowCreatePost(false)
-  }
 
   const handleDelete = () => {
     if (!postToDelete) return
     deletePost.mutate(postToDelete, {
       onSettled: () => {
         setPostToDelete(null)
-        closeComposer()
       },
     })
   }
@@ -78,7 +65,7 @@ export default function DashboardFeed({
     <>
       {/* ============ MOBILE X / TWITTER HOME (mobile only) ============ */}
       <div className="lg:hidden -mx-4 -mt-4">
-        {/* Mobile Welcome (same as desktop, compact) — before tabs */}
+        {/* Mobile Welcome (same as desktop, compact) â€” before tabs */}
         <div className="welcome-card mx-4 mt-4 mb-3 relative overflow-hidden bg-gradient-to-br from-[#0a0a0a] via-[#0a0a0a] to-[#1f1f1f] rounded-2xl px-5 py-4 text-white shadow-lg">
           <div className="welcome-card__glow absolute -top-20 -right-20 w-40 h-40 bg-[#f5c842]/10 rounded-full blur-3xl" />
           <div className="relative z-10">
@@ -129,41 +116,17 @@ export default function DashboardFeed({
           </div>
         </div>
 
-        {/* Mobile composer (X style) */}
-        <div className="bg-white border-b border-[#e6e9e6] px-4 py-3 flex space-x-3">
-          <Avatar src={user?.avatarUrl} name={username} size="sm" />
-          <button
-            type="button"
-            onClick={() => openComposer()}
-            className="flex-1 text-left text-[15px] text-[#7b857b] pt-2"
-          >
-            Share something educational...
-          </button>
-          <button
-            type="button"
-            onClick={() => openComposer()}
-            aria-label="Add a video"
-            title="Add a video"
-            className="self-center w-9 h-9 rounded-full bg-[#fdf5d7] text-[#8a6d00] flex items-center justify-center hover:bg-[#fdeeb8] transition-colors"
-          >
-            <i className="bi bi-camera-video" />
-          </button>
-        </div>
-
-        {/* Mobile create-post sheet */}
-        {showCreatePost && (
-          <div className="bg-white border-b border-[#e6e9e6] p-4">
-            <PostComposer
-              variant="mobile"
-              canAttachMedia={isCreator}
-              onRequireVerification={() => setVerifyOpen(true)}
-              onCancel={closeComposer}
-              onSubmit={(values) => {
-                createPost.mutate(values, {
-                  onSuccess: closeComposer,
-                })
-              }}
-            />
+        {/* Mobile upload entry */}
+        {isCreator && (
+          <div className="bg-white border-b border-[#e6e9e6] px-4 py-3">
+            <button
+              type="button"
+              onClick={onUpload}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-[#0a0a0a] px-5 py-3 text-[15px] font-semibold text-white transition-colors hover:bg-[#1f1f1f]"
+            >
+              <i className="bi bi-cloud-arrow-up text-[#f5c842]" />
+              Upload a video
+            </button>
           </div>
         )}
 
@@ -211,7 +174,7 @@ export default function DashboardFeed({
                     </span>
                   )}
                   <span className="text-[#7b857b] text-[13px] flex-shrink-0">
-                    · {formatTimeAgo(post.timestamp)}
+                    Â· {formatTimeAgo(post.timestamp)}
                   </span>
                   {post.canDelete && (
                     <button
@@ -226,7 +189,7 @@ export default function DashboardFeed({
                 </div>
                 {(post.subject || post.classLevel) && (
                   <p className="text-[13px] text-[#8a6d00] font-medium">
-                    {[post.subject, post.classLevel].filter(Boolean).join(' · ')}
+                    {[post.subject, post.classLevel].filter(Boolean).join(' Â· ')}
                   </p>
                 )}
                 <p className="text-[15px] text-[#0a0a0a] leading-normal mt-0.5">{post.content}</p>
@@ -267,18 +230,18 @@ export default function DashboardFeed({
           ))}
         </div>
 
-        {/* Mobile FAB (compose) */}
+        {/* Mobile FAB (upload) */}
         <button
           type="button"
-          onClick={() => (showCreatePost ? closeComposer() : openComposer())}
-          aria-label="Create post"
+          onClick={onUpload}
+          aria-label="Upload a video"
           className="fixed bottom-[78px] right-4 z-40 w-14 h-14 bg-[#f5c842] rounded-full shadow-xl flex items-center justify-center text-[#0a0a0a]"
         >
-          <i className="bi bi-plus-lg text-2xl" />
+          <i className="bi bi-cloud-arrow-up text-2xl" />
         </button>
       </div>
 
-      {/* Welcome Section — compact greeting (DESKTOP ONLY) */}
+      {/* Welcome Section â€” compact greeting (DESKTOP ONLY) */}
       <div className="welcome-card hidden lg:block relative overflow-hidden bg-gradient-to-br from-[#0a0a0a] via-[#0a0a0a] to-[#1f1f1f] rounded-2xl px-8 py-6 text-white shadow-lg">
         <div className="welcome-card__glow absolute -top-24 -right-16 w-56 h-56 bg-[#f5c842]/10 rounded-full blur-3xl" />
         <div className="welcome-card__glow welcome-card__glow--green absolute -bottom-24 -left-16 w-56 h-56 bg-[#3a8f4d]/20 rounded-full blur-3xl" />
@@ -328,51 +291,33 @@ export default function DashboardFeed({
         </div>
       </div>
 
-      {/* Create Post Section - Refined (DESKTOP ONLY) */}
-      <div className="hidden lg:block bg-white rounded-2xl border border-[#e6e9e6] overflow-hidden shadow-sm">
-        <div className="p-8 bg-gradient-to-r from-white via-[#fdf5d7]/20 to-white">
-            <div className="flex items-center space-x-4 mb-6">
-              <Avatar
-                src={user?.avatarUrl}
-                name={username}
-                size="md"
-                className="shadow-md"
-              />
+      {/* Upload Video Section - Refined (DESKTOP ONLY) */}
+      {isCreator && (
+        <div className="hidden lg:block bg-white rounded-2xl border border-[#e6e9e6] overflow-hidden shadow-sm">
+          <div className="p-8 bg-gradient-to-r from-white via-[#fdf5d7]/20 to-white">
+            <div className="flex flex-col items-center text-center gap-5 py-4">
+              <div className="w-16 h-16 rounded-full bg-[#fdf5d7] flex items-center justify-center">
+                <i className="bi bi-cloud-arrow-up text-2xl text-[#8a6d00]" />
+              </div>
+              <div className="max-w-md">
+                <h2 className="font-heading text-xl font-semibold text-[#0a0a0a]">Upload a video</h2>
+                <p className="text-[#7b857b] text-sm mt-2">
+                  Share an educational lesson with your community. The video is sent to your YouTube
+                  channel and listed in the Talma library after review.
+                </p>
+              </div>
               <button
                 type="button"
-                onClick={() => openComposer()}
-                className="flex-1 text-left px-6 py-3.5 bg-[#f7f9f7] rounded-full text-[#7b857b] hover:bg-[#eef1ee] transition-all duration-300 focus:ring-2 focus:ring-[#f5c842] focus:ring-offset-2 font-medium"
+                onClick={onUpload}
+                className="inline-flex items-center gap-2 rounded-xl bg-[#f5c842] px-6 py-3 font-semibold text-[#0a0a0a] shadow-md transition-colors hover:bg-[#e9b92b]"
               >
-                Share something educational with your community...
-              </button>
-              <button
-                type="button"
-                onClick={() => openComposer()}
-                aria-label="Add a video"
-                title="Add a video"
-                className="w-12 h-12 flex-shrink-0 rounded-full bg-[#fdf5d7] text-[#8a6d00] hover:bg-[#fdeeb8] hover:scale-105 flex items-center justify-center transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[#f5c842] focus:ring-offset-2"
-              >
-                <i className="bi bi-camera-video text-xl" />
+                <i className="bi bi-cloud-arrow-up" />
+                Upload video
               </button>
             </div>
-
-            {showCreatePost && (
-              <div className="border-t border-[#e6e9e6] pt-8 space-y-6 animate-fade-in">
-                <PostComposer
-                  variant="desktop"
-                  canAttachMedia={isCreator}
-                  onRequireVerification={() => setVerifyOpen(true)}
-                  onCancel={closeComposer}
-                  onSubmit={(values) => {
-                    createPost.mutate(values, {
-                      onSuccess: closeComposer,
-                    })
-                  }}
-                />
-              </div>
-            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Educational Posts Feed - Premium Treatment (DESKTOP ONLY) */}
       <div className="hidden lg:block bg-white rounded-2xl border border-[#e6e9e6] overflow-hidden shadow-sm">
@@ -585,11 +530,6 @@ export default function DashboardFeed({
           </div>
         </div>
       </Modal>
-
-      <CreatorVerificationModal
-        open={verifyOpen}
-        onClose={() => setVerifyOpen(false)}
-      />
     </>
   )
 }
@@ -608,345 +548,4 @@ function downloadMedia(mediaUrl: string, fileName: string): void {
   } catch {
     window.open(mediaUrl, '_blank')
   }
-}
-
-/* ---------------------------------------------------------------------------
-   Post composer — shared by the desktop form and the mobile sheet.
-   --------------------------------------------------------------------------- */
-
-interface ComposerValues {
-  content: string
-  subject?: string
-  classLevel?: string
-  mediaType?: 'none' | 'image' | 'video'
-  mediaUrl?: string
-}
-
-interface PostComposerProps {
-  variant: 'desktop' | 'mobile'
-  /** Verified creators may attach media; everyone else is asked to verify. */
-  canAttachMedia?: boolean
-  onRequireVerification?: () => void
-  onCancel: () => void
-  onSubmit: (values: ComposerValues) => void
-  error?: string
-}
-
-function PostComposer({
-  variant,
-  canAttachMedia = false,
-  onRequireVerification,
-  onCancel,
-  onSubmit,
-  error,
-}: PostComposerProps) {
-  const [content, setContent] = useState('')
-  const [subject, setSubject] = useState('')
-  const [classLevel, setClassLevel] = useState('')
-  const [mediaType, setMediaType] = useState<'none' | 'image' | 'video'>('none')
-  const [mediaUrl, setMediaUrl] = useState('')
-  const [previewUrl, setPreviewUrl] = useState('')
-  const [fileError, setFileError] = useState('')
-
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const upload = useUploadPostMedia()
-  const uploading = upload.isPending
-
-  const handleFile = async (file: File | undefined) => {
-    if (!file) return
-
-    const isPhoto = file.type.startsWith('image/')
-    const isVideo = file.type.startsWith('video/')
-
-    if (!isPhoto && !isVideo) {
-      setFileError('Only photos and videos can be attached — audio files are not supported.')
-      return
-    }
-
-    setFileError('')
-    setPreviewUrl(URL.createObjectURL(file))
-    setMediaType(isVideo ? 'video' : 'image')
-
-    try {
-      const result = await upload.mutateAsync(file)
-      setMediaUrl(result.url)
-    } catch (caught) {
-      setFileError(
-        caught instanceof ApiError ? caught.message : 'That file could not be uploaded.',
-      )
-      setPreviewUrl('')
-      setMediaUrl('')
-      setMediaType('none')
-    }
-  }
-
-  const clearMedia = () => {
-    setMediaUrl('')
-    setPreviewUrl('')
-    setMediaType('none')
-  }
-
-  const submit = () => {
-    if (!content.trim()) return
-    if (mediaType === 'video' && (!subject || !classLevel)) {
-      setFileError('Choose a subject and class level for this video.')
-      return
-    }
-    setFileError('')
-    onSubmit({
-      content: content.trim(),
-      ...(subject ? { subject } : {}),
-      ...(classLevel ? { classLevel } : {}),
-      mediaType,
-      mediaUrl: mediaUrl || undefined,
-    })
-  }
-
-  const canSubmit =
-    content.trim().length > 0 &&
-    !uploading &&
-    (mediaType !== 'video' || (Boolean(subject) && Boolean(classLevel)))
-
-  const mediaPreview = previewUrl ? (
-    <div
-      className={
-        variant === 'mobile'
-          ? 'rounded-xl overflow-hidden border border-[#e6e9e6]'
-          : 'relative rounded-xl overflow-hidden border border-[#e6e9e6]'
-      }
-    >
-      {mediaType === 'image' ? (
-        <img
-          src={previewUrl}
-          alt="Preview"
-          className={variant === 'mobile' ? 'w-full max-h-56 object-cover' : 'w-full max-h-64 object-cover'}
-        />
-      ) : (
-        <video
-          src={previewUrl}
-          className={variant === 'mobile' ? 'w-full max-h-56 object-cover' : 'w-full max-h-64 object-cover'}
-          controls
-        />
-      )}
-      {variant === 'desktop' && (
-        <button
-          type="button"
-          onClick={clearMedia}
-          aria-label="Remove media"
-          className="absolute top-3 right-3 bg-[#8a6d00]/90 hover:bg-[#6b5400] text-white rounded-lg w-8 h-8 flex items-center justify-center text-lg transition-colors shadow-md"
-        >
-          ✕
-        </button>
-      )}
-    </div>
-  ) : null
-
-  const tagFields = (
-    <div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <label
-            htmlFor={`post-subject-${variant}`}
-            className="mb-1.5 block text-sm font-medium text-[#4d554d]"
-          >
-            Subject
-          </label>
-          <select
-            id={`post-subject-${variant}`}
-            value={subject}
-            onChange={(event) => {
-              setSubject(event.target.value)
-              setFileError('')
-            }}
-            className="w-full rounded-xl border border-[#e6e9e6] bg-white px-4 py-2.5 text-[#0a0a0a] focus:outline-none focus:ring-2 focus:ring-[#f5c842]"
-          >
-            <option value="">Choose a subject</option>
-            {VIDEO_SUBJECTS.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label
-            htmlFor={`post-class-level-${variant}`}
-            className="mb-1.5 block text-sm font-medium text-[#4d554d]"
-          >
-            Class level
-          </label>
-          <select
-            id={`post-class-level-${variant}`}
-            value={classLevel}
-            onChange={(event) => {
-              setClassLevel(event.target.value)
-              setFileError('')
-            }}
-            className="w-full rounded-xl border border-[#e6e9e6] bg-white px-4 py-2.5 text-[#0a0a0a] focus:outline-none focus:ring-2 focus:ring-[#f5c842]"
-          >
-            <option value="">Choose a class level</option>
-            {VIDEO_CLASS_LEVELS.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-      {mediaType === 'video' && (!subject || !classLevel) && (
-        <p className="mt-2 text-xs font-medium text-[#8a6d00]">
-          Choose a subject and class level to publish this video.
-        </p>
-      )}
-    </div>
-  )
-
-  const uploadField = (
-    <div>
-      {variant === 'mobile' ? (
-        canAttachMedia ? (
-          <>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*,video/*"
-              className="hidden"
-              id="post-media-upload-mobile"
-              onChange={(event) => void handleFile(event.target.files?.[0])}
-            />
-            <label
-              htmlFor="post-media-upload-mobile"
-              aria-label="Choose image or video"
-              className="w-10 h-10 rounded-full bg-[#fdf5d7] text-[#8a6d00] flex items-center justify-center cursor-pointer"
-            >
-              <i className="bi bi-camera-video" />
-            </label>
-          </>
-        ) : (
-          <button
-            type="button"
-            onClick={onRequireVerification}
-            aria-label="Verify to add media"
-            className="w-10 h-10 rounded-full bg-[#fdf5d7] text-[#8a6d00] flex items-center justify-center"
-          >
-            <i className="bi bi-camera-video" />
-          </button>
-        )
-      ) : canAttachMedia ? (
-        <>
-          <span className="block text-sm font-medium text-[#4d554d] mb-3">Add media</span>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*,video/*"
-            className="hidden"
-            id="post-media-upload"
-            onChange={(event) => void handleFile(event.target.files?.[0])}
-          />
-          <label
-            htmlFor="post-media-upload"
-            className="w-full px-4 py-2.5 bg-gradient-to-r from-[#fdf5d7] to-[#fdeeb8] text-[#8a6d00] rounded-xl cursor-pointer hover:from-[#fdeeb8] hover:to-[#fbe7a1] transition-all duration-300 flex items-center justify-center space-x-2 font-medium border border-[#e6e9e6]"
-          >
-            <i className="bi bi-camera-video text-lg" />
-            <span>{uploading ? 'Uploading…' : 'Choose a video or photo'}</span>
-          </label>
-        </>
-      ) : (
-        <button
-          type="button"
-          onClick={onRequireVerification}
-          className="w-full px-4 py-2.5 bg-gradient-to-r from-[#fdf5d7] to-[#fdeeb8] text-[#8a6d00] rounded-xl cursor-pointer hover:from-[#fdeeb8] hover:to-[#fbe7a1] transition-all duration-300 flex items-center justify-center space-x-2 font-medium border border-[#e6e9e6]"
-        >
-          <i className="bi bi-patch-check text-lg" />
-          <span>Verify to attach media</span>
-        </button>
-      )}
-    </div>
-  )
-
-  if (variant === 'mobile') {
-    return (
-      <div className="space-y-3">
-        <textarea
-          value={content}
-          onChange={(event) => setContent(event.target.value)}
-          placeholder="Share educational content, tips, resources, or questions..."
-          className="w-full p-3 border border-[#e6e9e6] rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-[#f5c842] text-[15px] text-[#0a0a0a]"
-          rows={3}
-        />
-        {tagFields}
-        {mediaPreview}
-        {fileError && <p className="text-sm text-[#8a6d00]">{fileError}</p>}
-        {error && <p className="text-sm text-[#8a6d00]">{error}</p>}
-        <div className="flex items-center justify-between">
-          {uploadField}
-          <div className="flex space-x-2">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="px-4 py-2 text-sm text-[#4d554d] font-medium"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={submit}
-              disabled={!canSubmit}
-              className="px-5 py-2 bg-[#0a0a0a] text-white rounded-full text-sm font-semibold disabled:opacity-40"
-            >
-              Post
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <label htmlFor="post-content" className="block text-sm font-medium text-[#4d554d] mb-3">
-          Your insight
-        </label>
-        <textarea
-          id="post-content"
-          value={content}
-          onChange={(event) => setContent(event.target.value)}
-          placeholder="Share educational content, tips, resources, or questions..."
-          className="w-full p-4 border border-[#e6e9e6] rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-[#f5c842] focus:border-transparent text-[#0a0a0a] placeholder-[#7b857b] leading-relaxed"
-          rows={4}
-        />
-      </div>
-
-      {tagFields}
-
-      <div>
-        {uploadField}
-      </div>
-
-      {fileError && <p className="text-sm text-[#8a6d00]">{fileError}</p>}
-      {error && <p className="text-sm text-[#8a6d00]">{error}</p>}
-
-      {mediaPreview}
-
-      <div className="flex justify-end space-x-3 pt-4">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-6 py-2.5 text-[#4d554d] hover:text-[#0a0a0a] transition-colors font-medium"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={submit}
-          disabled={!canSubmit}
-          className="px-8 py-2.5 bg-gradient-to-r from-[#f5c842] to-[#e0b53a] text-white rounded-xl hover:shadow-lg hover:from-[#e0b53a] hover:to-[#b8860b] transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed font-medium"
-        >
-          Share Post
-        </button>
-      </div>
-    </div>
-  )
 }

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { roleLabel } from '../lib/roleLabel'
+import { useCreatorProfile } from '../hooks/useCreators'
 import { useMessages } from '../hooks/useMessages'
 import { useNotifications } from '../hooks/useNotifications'
 import ProfileMenu from '../components/profile/ProfileMenu'
@@ -12,6 +13,7 @@ import MessagesView from '../components/messages/MessagesView'
 import StudyAssistantView from '../components/assistant/StudyAssistantView'
 import SettingsView from '../components/settings/SettingsView'
 import VideosView from '../components/videos/VideosView'
+import CreatorUploadModal from '../components/videos/CreatorUploadModal'
 
 type Tab = 'dashboard' | 'classroom' | 'videos' | 'messages' | 'assistant' | 'settings'
 
@@ -40,6 +42,7 @@ export default function DashboardPage() {
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState<Tab>('dashboard')
   const [searchOpen, setSearchOpen] = useState(false)
+  const [uploadOpen, setUploadOpen] = useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
 
   const paymentReference = searchParams.get('reference') ?? searchParams.get('trxref')
@@ -66,6 +69,11 @@ export default function DashboardPage() {
 
   const username = user?.username ?? 'Student'
   const userRole = roleLabel(user?.role)
+
+  const isAdmin = user?.role === 'admin'
+  const profileQuery = useCreatorProfile(Boolean(user) && !isAdmin)
+  const creatorProfile = profileQuery.data?.creator ?? null
+  const sharePercent = creatorProfile?.sharePercent ?? 70
 
   return (
     <div className="talma-app min-h-screen bg-[#f7f9f7]">
@@ -161,6 +169,7 @@ export default function DashboardPage() {
                   notifications={notifications}
                   username={username}
                   onOpenSearch={() => setSearchOpen(true)}
+                  onUpload={() => setUploadOpen(true)}
                 />
               </div>
             )}
@@ -182,6 +191,13 @@ export default function DashboardPage() {
           </main>
         </div>
       </div>
+
+      <CreatorUploadModal
+        open={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        sharePercent={isAdmin ? 0 : sharePercent}
+        onUploaded={() => setUploadOpen(false)}
+      />
 
       {/* Mobile Bottom Nav - X / Twitter style */}
       <nav className="fixed bottom-0 inset-x-0 z-50 lg:hidden bg-white/95 backdrop-blur-md border-t border-[#e6e9e6] pb-[env(safe-area-inset-bottom)]">

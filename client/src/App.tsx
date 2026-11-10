@@ -30,13 +30,26 @@ function RequireAuth({ children }: { children: React.ReactElement }) {
   return children
 }
 
+/**
+ * Root route — signed-in users go straight to the app Home (`/mycamp`)
+ * instead of the public landing page, so returning to the site after the
+ * session is restored lands them on the dashboard, not the marketing page.
+ */
+function RootRoute({ children }: { children: React.ReactElement }) {
+  const { isAuthenticated, isLoading } = useAuth()
+
+  if (isLoading) return <PageLoader label="Restoring your session…" />
+  if (isAuthenticated) return <Navigate to="/mycamp" replace />
+  return children
+}
+
 export default function App() {
   return (
     <>
       <AppTheme />
       <Suspense fallback={<PageLoader label="Loading Talma…" />}>
         <Routes>
-          <Route path="/" element={<HomePage />} />
+          <Route path="/" element={<RootRoute><HomePage /></RootRoute>} />
           <Route path="/signup" element={<SignUpPage />} />
           <Route path="/signin" element={<SignInPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />

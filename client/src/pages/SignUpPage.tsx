@@ -149,11 +149,13 @@ export default function SignUpPage() {
       if (user.emailVerified) {
         setMessage('Success! Your Talma account is ready.')
         setMessageType('success')
-        window.setTimeout(() => navigate('/mycamp'), 1500)
+        window.history.replaceState(null, '', '/mycamp')
+        window.setTimeout(() => navigate('/mycamp', { replace: true }), 1500)
       } else {
         setMessage('Success! Check your email for a confirmation link.')
         setMessageType('success')
-        window.setTimeout(() => navigate('/signin'), 2000)
+        window.history.replaceState(null, '', '/signin')
+        window.setTimeout(() => navigate('/signin', { replace: true }), 2000)
       }
     } catch (error) {
       setMessage(
