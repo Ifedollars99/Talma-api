@@ -33,6 +33,7 @@ export interface AuthContextValue {
       | 'timezone'
       | 'bio'
       | 'avatarUrl'
+      | 'whatsappUrl'
       | 'gender'
       | 'privacyPublic'
       | 'emailNotifications'

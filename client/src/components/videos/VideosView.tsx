@@ -11,6 +11,7 @@ import {
   useUpdateVideo,
   useVideos,
   useVerifyVideoPayment,
+  useWatchVideo,
   type CreateVideoInput,
 } from '../../hooks/useVideos'
 import { useCreatorApplications, useCreatorProfile } from '../../hooks/useCreators'
@@ -19,7 +20,7 @@ import Modal from '../ui/Modal'
 import CreatorApplicationsPanel from './CreatorApplicationsPanel'
 import ReviewPanel from './ReviewPanel'
 import VideoCard from './VideoCard'
-import type { CreatorStatus, VideoItem } from '../../types'
+import type { CreatorStatus, VideoItem, VideoWatchResult } from '../../types'
 
 interface VideosViewProps {
   /** `reference`/`trxref` Paystack appends when it redirects the buyer back. */
@@ -35,13 +36,15 @@ export default function VideosView({
 }: VideosViewProps) {
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
+  const isEducator =
+    user?.role === 'creator' || user?.role === 'lecturer' || user?.role === 'admin'
 
   const profileQuery = useCreatorProfile(Boolean(user) && !isAdmin)
   const creatorProfile = profileQuery.data?.creator ?? null
   const creatorStatus: CreatorStatus = isAdmin
     ? 'approved'
     : (creatorProfile?.status ?? user?.creatorStatus ?? 'none')
-  const isCreator = creatorStatus === 'approved'
+  const isCreator = isEducator && creatorStatus === 'approved'
   // Administrators already see every status in the Library, so a separate
   // "My videos" tab would just duplicate it.
   const showMineTab = isCreator && !isAdmin
@@ -54,6 +57,7 @@ export default function VideosView({
   const checkout = useCheckoutVideo()
   const verifyPayment = useVerifyVideoPayment()
   const deleteVideo = useDeleteVideo()
+  const watchVideo = useWatchVideo()
   const { toast, showSuccess, showError } = useToast()
 
   const [tab, setTab] = useState<Tab>('library')
@@ -61,6 +65,8 @@ export default function VideosView({
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<VideoItem | null>(null)
   const [deleting, setDeleting] = useState<VideoItem | null>(null)
+  const [watching, setWatching] = useState<VideoItem | null>(null)
+  const [playback, setPlayback] = useState<VideoWatchResult | null>(null)
   const [verifying, setVerifying] = useState(false)
   const handledReference = useRef<string | null>(null)
 
@@ -128,6 +134,27 @@ export default function VideosView({
     })
   }
 
+  const handleWatch = (video: VideoItem) => {
+    setWatching(video)
+    setPlayback(null)
+    watchVideo.mutate(video.id, {
+      onSuccess: (result) => setPlayback(result),
+      onError: (caught) => {
+        setWatching(null)
+        showError(
+          caught instanceof ApiError
+            ? caught.message
+            : 'Could not prepare this lesson for playback.',
+        )
+      },
+    })
+  }
+
+  const closePlayer = () => {
+    setWatching(null)
+    setPlayback(null)
+  }
+
   const handleDelete = () => {
     if (!deleting) return
     deleteVideo.mutate(deleting.id, {
@@ -169,7 +196,8 @@ export default function VideosView({
           </p>
           <h2 className="font-heading text-3xl font-semibold text-[#0a0a0a] mt-1">Multimedia</h2>
           <p className="text-[#4d554d] mt-1">
-            Pay once per lesson, then watch it on YouTube whenever you like.
+            Pay once per lesson, then watch it securely in Talma. Private links expire and
+            cannot be shared.
           </p>
         </div>
 
@@ -196,7 +224,7 @@ export default function VideosView({
       {isAdmin && (
         <div className="rounded-xl border border-[#f5c842]/50 bg-[#fdf5d7] px-4 py-3 text-sm text-[#6b5400]">
           <i className="bi bi-info-circle me-2" />
-          Creator uploads stay <strong>unlisted</strong> and out of the library until you
+          Creator uploads stay <strong>private</strong> and out of the library until you
           approve them in the Review tab.
         </div>
       )}
@@ -331,7 +359,7 @@ export default function VideosView({
                 {tab === 'mine'
                   ? 'Upload your first lesson. It stays out of the library until an admin reviews it.'
                   : isAdmin
-                    ? 'Creator uploads will appear here after they finish processing on YouTube.'
+                    ? 'Creator uploads will appear here after Cloudflare finishes processing them.'
                     : 'Check back soon — lessons are being added to the library.'}
               </p>
             </div>
@@ -347,6 +375,7 @@ export default function VideosView({
                   paying={payingId === video.id && checkout.isPending}
                   sharePercent={sharePercent}
                   onUnlock={handleUnlock}
+                  onWatch={handleWatch}
                   onEdit={openEdit}
                   onDelete={setDeleting}
                 />
@@ -382,8 +411,8 @@ export default function VideosView({
           </div>
           <h3 className="font-heading text-xl font-semibold text-[#0a0a0a]">Remove this video?</h3>
           <p className="mt-2 text-sm text-[#4d554d]">
-            “{deleting?.title}” will be removed from Talma. Talma will also delete its YouTube
-            copy when the channel authorization allows it.
+            “{deleting?.title}” will be removed from Talma. Talma will also delete its
+            Cloudflare Stream or YouTube copy when possible.
             {isAdmin
               ? ' Every purchase record for it will also be deleted, so buyers will lose access.'
               : ' You cannot delete a video that students have already bought or that has a checkout in progress.'}{' '}
@@ -407,6 +436,57 @@ export default function VideosView({
             </button>
           </div>
         </div>
+      </Modal>
+
+      <Modal
+        open={watching !== null}
+        onClose={closePlayer}
+        className="w-full max-w-4xl overflow-hidden rounded-2xl bg-[#0a0a0a] shadow-2xl"
+        labelledBy="video-player-title"
+      >
+        <div className="flex items-center justify-between gap-3 px-5 py-4 text-white">
+          <div>
+            <h3 id="video-player-title" className="font-heading text-lg font-semibold">
+              {watching?.title}
+            </h3>
+            <p className="text-xs text-white/60">
+              Private playback · access is checked for your account
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={closePlayer}
+            aria-label="Close player"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            <i className="bi bi-x-lg" />
+          </button>
+        </div>
+
+        <div className="aspect-video w-full bg-black">
+          {playback ? (
+            <iframe
+              src={playback.watchUrl}
+              title={watching?.title ?? 'Talma lesson'}
+              className="h-full w-full"
+              allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+              allowFullScreen
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-white/70">
+              <span className="h-6 w-6 animate-spin rounded-full border-2 border-[#f5c842] border-t-transparent" />
+              <span className="ml-3 text-sm">Preparing secure playback…</span>
+            </div>
+          )}
+        </div>
+
+        {playback?.expiresAt && (
+          <p className="px-5 py-3 text-xs text-white/60">
+            This private link expires{' '}
+            {new Date(playback.expiresAt).toLocaleTimeString()}. Reopen the lesson for a fresh
+            one.
+          </p>
+        )}
       </Modal>
     </div>
   )
@@ -450,6 +530,7 @@ function VideoForm({
   const createVideo = useCreateVideo()
   const updateVideo = useUpdateVideo()
   const creatorVideo = Boolean(video?.creator)
+  const isStreamVideo = video?.provider === 'cloudflare'
   const [youtubeUrl, setYoutubeUrl] = useState(video?.youtubeUrl ?? '')
   const [title, setTitle] = useState(video?.title ?? '')
   const [description, setDescription] = useState(video?.description ?? '')
@@ -468,7 +549,7 @@ function VideoForm({
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
-    if (!youtubeUrl.trim()) {
+    if (!isStreamVideo && !youtubeUrl.trim()) {
       onError('Paste the YouTube link for this video.')
       return
     }
@@ -517,8 +598,22 @@ function VideoForm({
     }
 
     if (video) {
+      const inputForUpdate = isStreamVideo
+        ? {
+            title: input.title,
+            description: input.description,
+            subject: input.subject,
+            classLevel: input.classLevel,
+            priceNaira: input.priceNaira,
+            published: input.published,
+            ...(input.durationSeconds !== undefined
+              ? { durationSeconds: input.durationSeconds }
+              : {}),
+          }
+        : input
+
       updateVideo.mutate(
-        { id: video.id, input },
+        { id: video.id, input: inputForUpdate },
         {
           onSuccess: () => onSaved('Video updated.'),
           onError: (caught) =>
@@ -546,13 +641,15 @@ function VideoForm({
           {video ? 'Edit video' : 'Add a YouTube video'}
         </h3>
         <p className="mt-1 text-sm text-[#4d554d]">
-          {creatorVideo
-            ? 'This lesson was uploaded by a creator. Title and description changes also update YouTube.'
-            : 'Paste an existing unlisted YouTube link. New creator uploads use the Upload button instead.'}
+          {isStreamVideo
+            ? 'This lesson is hosted privately on Cloudflare Stream. Title and description changes also update Cloudflare.'
+            : creatorVideo
+              ? 'This lesson was uploaded by a creator. Title and description changes also update YouTube.'
+              : 'Paste an existing unlisted YouTube link. New creator uploads use the Upload button instead.'}
         </p>
       </div>
 
-      {!creatorVideo && (
+      {!creatorVideo && !isStreamVideo && (
         <div>
           <label htmlFor="video-url" className={labelClass}>
             YouTube link

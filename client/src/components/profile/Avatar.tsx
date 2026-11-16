@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl'
+type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl'
 
 const SIZE_CLASSES: Record<AvatarSize, string> = {
   xs: 'h-8 w-8 text-xs',
@@ -8,6 +8,7 @@ const SIZE_CLASSES: Record<AvatarSize, string> = {
   md: 'h-12 w-12 text-base',
   lg: 'h-20 w-20 text-2xl',
   xl: 'h-24 w-24 text-3xl',
+  '2xl': 'h-28 w-28 text-4xl',
 }
 
 interface AvatarProps {

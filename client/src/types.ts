@@ -17,6 +17,7 @@ export interface User {
   timezone: string
   bio: string
   avatarUrl: string
+  whatsappUrl: string
   gender?: Gender
   creatorVerifiedAt?: string
   privacyPublic: boolean
@@ -35,6 +36,7 @@ export interface PublicProfile {
   state: string
   bio: string
   avatarUrl: string
+  whatsappUrl: string
   gender?: Gender
   creatorVerifiedAt?: string
   createdAt: string
@@ -53,6 +55,7 @@ export interface FollowUserSummary {
   state: string
   bio: string
   avatarUrl: string
+  whatsappUrl?: string
   followerCount: number
   followingCount: number
   isFollowing: boolean
@@ -91,6 +94,8 @@ export interface Post {
   classLevel?: string
   mediaType: PostMediaType
   mediaUrl?: string
+  /** The YouTube copy of a video post, opened instead of playing inline. */
+  youtubeUrl?: string
   likes: number
   comments: number
   likedByMe: boolean
@@ -269,10 +274,16 @@ export interface DiscoverHub {
 export type VideoStatus =
   | 'draft'
   | 'uploading'
+  | 'processing'
   | 'pending_review'
   | 'published'
   | 'rejected'
   | 'failed'
+
+/** Where the video bytes live. New uploads use Cloudflare Stream. */
+export type VideoProvider = 'youtube' | 'cloudflare'
+
+export type VideoStreamStatus = 'queued' | 'inprogress' | 'ready' | 'error'
 
 export interface VideoItem {
   id: string
@@ -280,6 +291,10 @@ export interface VideoItem {
   description: string
   subject: string
   classLevel: string
+  /** Position of this lesson in a multi-part series, e.g. `2` in "2 of 4". */
+  periodNumber?: number
+  /** Total lessons in the series, e.g. `4` in "2 of 4". */
+  periodTotal?: number
   thumbnailUrl: string
   durationSeconds: number
   priceKobo: number
@@ -288,13 +303,17 @@ export interface VideoItem {
   locked: boolean
   published: boolean
   status: VideoStatus
+  provider: VideoProvider
+  /** True when this viewer may start playback right now. */
+  canWatch: boolean
+  streamStatus?: VideoStreamStatus
   createdAt: string
   canManage: boolean
   canReview: boolean
   creator?: { id: string; name: string }
   rejectionReason?: string
   uploadedAt?: string
-  /** Present only after purchase (or for administrators/owners). */
+  /** Legacy YouTube links only; Cloudflare playback is fetched on demand. */
   watchUrl?: string
   /** Present only for administrators. */
   youtubeUrl?: string
@@ -303,14 +322,26 @@ export interface VideoItem {
 
 export interface VideoUploadStart {
   video: VideoItem
-  /** One-time Google resumable upload session. */
+  provider: VideoProvider
+  /** `tus` uploads directly to Cloudflare; `youtube` uses the legacy API proxy. */
+  uploadMethod: 'tus' | 'youtube'
+  /** One-time upload session URL. */
   uploadUrl: string
   uploadExpiresAt: string
+  /** Present for Cloudflare direct uploads. */
+  streamUid?: string
 }
 
 /** Returned once the API has forwarded the file bytes to YouTube. */
 export interface YoutubeUploadResponse {
   youtubeVideoId: string
+}
+
+/** A short-lived playback target minted by `GET /api/videos/:id/watch`. */
+export interface VideoWatchResult {
+  watchUrl: string
+  /** Present for Cloudflare Stream links; YouTube links do not expire. */
+  expiresAt?: string
 }
 
 export type VideoPaymentStatus = 'pending' | 'paid' | 'failed' | 'abandoned'
@@ -379,4 +410,30 @@ export interface CreatorVerificationRequest {
 export interface CreatorVerificationResult {
   user: User
   message: string
+}
+
+export type AdvertisementKind = 'school' | 'teaching'
+
+/** A school or teaching placement shown on the signed-in Home screen. */
+export interface Advertisement {
+  id: string
+  kind: AdvertisementKind
+  title: string
+  subtitle: string
+  description: string
+  location: string
+  badge: string
+  ctaLabel: string
+  ctaUrl: string
+}
+
+export interface HomeEducator extends FollowUserSummary {
+  whatsappUrl: string
+}
+
+/** Content returned by `GET /api/home`. */
+export interface HomeContent {
+  educators: HomeEducator[]
+  schoolAds: Advertisement[]
+  teachingAds: Advertisement[]
 }

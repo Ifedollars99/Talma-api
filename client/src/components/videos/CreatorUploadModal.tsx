@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { ApiError } from '../../lib/apiClient'
-import { VIDEO_CLASS_LEVELS, VIDEO_SUBJECTS } from '../../lib/videoOptions'
+import { useAuth } from '../../lib/auth'
+import { uploadToCloudflareStream } from '../../lib/cloudflareStream'
+import { VIDEO_CLASS_LEVELS, VIDEO_PERIOD_OPTIONS, VIDEO_SUBJECTS } from '../../lib/videoOptions'
+import {
+  isWhatsAppGroupUrl,
+  normalizeWhatsAppUrl,
+  WHATSAPP_LINK_ERROR,
+} from '../../lib/whatsapp'
 import {
   useCompleteVideoUpload,
   useStartVideoUpload,
@@ -41,6 +48,7 @@ export default function CreatorUploadModal({
   onUploaded,
   sharePercent = 70,
 }: CreatorUploadModalProps) {
+  const { user, updateProfile } = useAuth()
   const startUpload = useStartVideoUpload()
   const uploadVideoFile = useUploadVideoFile()
   const completeUpload = useCompleteVideoUpload()
@@ -51,6 +59,8 @@ export default function CreatorUploadModal({
   const [description, setDescription] = useState('')
   const [subject, setSubject] = useState('')
   const [classLevel, setClassLevel] = useState('')
+  const [periodNumber, setPeriodNumber] = useState(1)
+  const [periodTotal, setPeriodTotal] = useState(1)
   const [priceChoice, setPriceChoice] = useState<PriceChoice>('preset')
   const [presetPrice, setPresetPrice] = useState<number>(DEFAULT_PRICE_NAIRA)
   const [customPrice, setCustomPrice] = useState('')
@@ -59,8 +69,14 @@ export default function CreatorUploadModal({
   const [progress, setProgress] = useState(0)
   const [retryNote, setRetryNote] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [linkInput, setLinkInput] = useState(user?.whatsappUrl ?? '')
+  const [linkSaving, setLinkSaving] = useState(false)
+  const [linkError, setLinkError] = useState<string | null>(null)
 
   const busy = phase === 'starting' || phase === 'uploading' || phase === 'finalizing'
+  const isEducator = user?.role === 'creator' || user?.role === 'lecturer'
+  const hasWhatsApp = isWhatsAppGroupUrl(user?.whatsappUrl ?? '')
+  const needsWhatsApp = Boolean(user) && isEducator && !hasWhatsApp
 
   const customPriceValue = customPrice.trim()
   const priceNaira =
@@ -93,6 +109,8 @@ export default function CreatorUploadModal({
     setDescription('')
     setSubject('')
     setClassLevel('')
+    setPeriodNumber(1)
+    setPeriodTotal(1)
     setPriceChoice('preset')
     setPresetPrice(DEFAULT_PRICE_NAIRA)
     setCustomPrice('')
@@ -101,7 +119,9 @@ export default function CreatorUploadModal({
     setProgress(0)
     setRetryNote(null)
     setError(null)
-  }, [open])
+    setLinkInput(user?.whatsappUrl ?? '')
+    setLinkError(null)
+  }, [open, user?.whatsappUrl])
 
   const chooseFile = (selected: File | null) => {
     setError(null)
@@ -128,6 +148,8 @@ export default function CreatorUploadModal({
     setDescription('')
     setSubject('')
     setClassLevel('')
+    setPeriodNumber(1)
+    setPeriodTotal(1)
     setPriceChoice('preset')
     setPresetPrice(DEFAULT_PRICE_NAIRA)
     setCustomPrice('')
@@ -146,10 +168,37 @@ export default function CreatorUploadModal({
     onClose()
   }
 
+  const saveWhatsAppLink = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setLinkError(null)
+    if (!isWhatsAppGroupUrl(linkInput)) {
+      setLinkError(WHATSAPP_LINK_ERROR)
+      return
+    }
+    setLinkSaving(true)
+    try {
+      await updateProfile({ whatsappUrl: normalizeWhatsAppUrl(linkInput) })
+    } catch (caught) {
+      setLinkError(
+        caught instanceof ApiError
+          ? caught.message
+          : 'Could not save your WhatsApp link. Please try again.',
+      )
+    } finally {
+      setLinkSaving(false)
+    }
+  }
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setError(null)
 
+    if (needsWhatsApp) {
+      setError(
+        'Add your WhatsApp group or community link before uploading. You can update it in Settings.',
+      )
+      return
+    }
     if (!file) {
       setError('Choose a video file to upload.')
       return
@@ -193,6 +242,8 @@ export default function CreatorUploadModal({
         description: description.trim(),
         subject,
         classLevel,
+        periodNumber,
+        periodTotal,
         priceNaira,
         fileName: file.name,
         mimeType: file.type || 'video/mp4',
@@ -204,16 +255,40 @@ export default function CreatorUploadModal({
 
       setPhase('uploading')
 
-      const { youtubeVideoId } = await uploadVideoFile.mutateAsync({
-        id: started.video.id,
-        file,
-      })
+      if (started.uploadMethod === 'tus') {
+        if (!started.streamUid) {
+          throw new Error('Cloudflare did not return an upload id. Please try again.')
+        }
 
-      setPhase('finalizing')
-      await completeUpload.mutateAsync({
-        id: started.video.id,
-        youtubeVideoId,
-      })
+        await uploadToCloudflareStream({
+          file,
+          uploadUrl: started.uploadUrl,
+          signal: controller.signal,
+          onProgress: setProgress,
+          onRetry: setRetryNote,
+        })
+
+        if (controller.signal.aborted) return
+
+        setPhase('finalizing')
+        await completeUpload.mutateAsync({
+          id: started.video.id,
+          streamUid: started.streamUid,
+        })
+      } else {
+        const { youtubeVideoId } = await uploadVideoFile.mutateAsync({
+          id: started.video.id,
+          file,
+        })
+
+        if (controller.signal.aborted) return
+
+        setPhase('finalizing')
+        await completeUpload.mutateAsync({
+          id: started.video.id,
+          youtubeVideoId,
+        })
+      }
 
       setPhase('done')
       onUploaded()
@@ -246,7 +321,16 @@ export default function CreatorUploadModal({
       className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"
       labelledBy="creator-upload-title"
     >
-      <form onSubmit={(event) => void submit(event)} className="space-y-4">
+      <form
+        onSubmit={(event) => {
+          if (needsWhatsApp) {
+            void saveWhatsAppLink(event)
+            return
+          }
+          void submit(event)
+        }}
+        className="space-y-4"
+      >
         <div>
           <h3
             id="creator-upload-title"
@@ -255,20 +339,75 @@ export default function CreatorUploadModal({
             Upload a video
           </h3>
           <p className="mt-1 text-sm text-[#4d554d]">
-            The file goes straight to YouTube as <strong>unlisted</strong> (not searchable). You
-            can preview it in “My videos”; Talma lists it in the library after an admin reviews
-            it.
+            The file goes straight to <strong>Cloudflare Stream</strong> as a private, signed
+            video. Only students who unlock it can watch; links expire and cannot be shared.
+            Talma lists it in the library after an admin reviews it.
           </p>
         </div>
 
-        {phase === 'done' ? (
+        {needsWhatsApp ? (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-[#f5c842]/50 bg-[#fdf5d7] px-4 py-3 text-sm text-[#6b5400]">
+              <p className="font-semibold text-[#0a0a0a]">
+                Add your WhatsApp community first
+              </p>
+              <p className="mt-1">
+                Students join your WhatsApp group from your Home card, so every verified
+                educator needs a group or community link before uploading.
+              </p>
+            </div>
+
+            <div>
+              <label htmlFor="upload-whatsapp" className={labelClass}>
+                WhatsApp group or community link
+              </label>
+              <input
+                id="upload-whatsapp"
+                type="url"
+                value={linkInput}
+                disabled={linkSaving}
+                onChange={(event) => setLinkInput(event.target.value)}
+                placeholder="https://chat.whatsapp.com/…"
+                className={fieldClass}
+              />
+              <p className="mt-1 text-xs text-[#7b857b]">
+                Use a chat.whatsapp.com group invite or a whatsapp.com/channel link. You can
+                edit it later in Settings.
+              </p>
+            </div>
+
+            {linkError && (
+              <div className="rounded-xl border border-[#fecaca] bg-[#fef2f2] px-4 py-3 text-sm text-[#991b1b]">
+                {linkError}
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={close}
+                className="flex-1 rounded-xl border border-[#e6e9e6] px-4 py-2.5 font-semibold text-[#4d554d]"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={linkSaving}
+                className="flex-1 rounded-xl bg-[#f5c842] px-4 py-2.5 font-semibold text-[#0a0a0a] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {linkSaving ? 'Saving…' : 'Save link and continue'}
+              </button>
+            </div>
+          </div>
+        ) : phase === 'done' ? (
           <div className="rounded-xl border border-[#d6e8bd] bg-[#f5f9e8] px-4 py-6 text-center">
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#3a8f4d] text-white">
               <i className="bi bi-check-lg text-xl" />
             </div>
             <p className="font-semibold text-[#2f6b3d]">Upload complete — sent for review.</p>
             <p className="mt-1 text-sm text-[#2c7a40]">
-              You will see it in “My videos” while an administrator reviews it.
+              Cloudflare may still be processing it. You will see it in “My videos” while an
+              administrator reviews it.
             </p>
             <button
               type="button"
@@ -294,7 +433,7 @@ export default function CreatorUploadModal({
               />
               <p className="mt-1.5 text-xs text-[#7b857b]">
                 MP4, WebM or MOV · up to 4 GB · up to one hour. The file is not stored on
-                Talma&apos;s servers.
+                Talma&apos;s servers, and uploads resume if the connection drops.
               </p>
               {file && (
                 <p className="mt-1 text-xs font-medium text-[#4d554d]">
@@ -312,7 +451,7 @@ export default function CreatorUploadModal({
                 type="text"
                 value={title}
                 disabled={busy}
-                maxLength={100}
+                maxLength={160}
                 onChange={(event) => setTitle(event.target.value)}
                 placeholder="e.g. Integration by parts — full lesson"
                 className={fieldClass}
@@ -375,6 +514,57 @@ export default function CreatorUploadModal({
                   ))}
                 </select>
               </div>
+            </div>
+
+            <div>
+              <span className={labelClass}>Lesson period</span>
+              <div className="flex items-center gap-2">
+                <select
+                  id="creator-period-number"
+                  aria-label="Period number"
+                  value={periodNumber}
+                  disabled={busy}
+                  onChange={(event) => {
+                    const next = Number(event.target.value)
+                    setPeriodNumber(next)
+                    if (next > periodTotal) setPeriodTotal(next)
+                  }}
+                  className={fieldClass}
+                >
+                  {VIDEO_PERIOD_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-sm font-semibold text-[#4d554d]">of</span>
+                <select
+                  id="creator-period-total"
+                  aria-label="Total periods in the series"
+                  value={periodTotal}
+                  disabled={busy}
+                  onChange={(event) => {
+                    const next = Number(event.target.value)
+                    setPeriodTotal(next)
+                    if (periodNumber > next) setPeriodNumber(next)
+                  }}
+                  className={fieldClass}
+                >
+                  {VIDEO_PERIOD_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="mt-1 text-xs text-[#7b857b]">
+                If this lesson is part of a series, label it 1 of 4, 2 of 4, 3 of 4 and so
+                on. Choose 1 of 1 for a standalone lesson. Students will see{' '}
+                <strong className="font-semibold text-[#4d554d]">
+                  Period {periodNumber} of {periodTotal}
+                </strong>
+                .
+              </p>
             </div>
 
             <div>
@@ -489,7 +679,7 @@ export default function CreatorUploadModal({
               />
               <span>
                 I own the rights to this video, it is not made for kids, and I agree to Talma
-                publishing it as an unlisted YouTube video after review.
+                publishing it as a private, signed lesson after review.
               </span>
             </label>
 
@@ -498,10 +688,10 @@ export default function CreatorUploadModal({
                 <div className="flex items-center justify-between text-xs text-[#4d554d]">
                   <span>
                     {phase === 'starting'
-                      ? 'Preparing the upload…'
+                      ? 'Preparing the secure upload…'
                       : phase === 'finalizing'
-                        ? 'Finalizing on YouTube…'
-                        : 'Uploading to YouTube…'}
+                        ? 'Securing and processing the video…'
+                        : 'Uploading to Cloudflare Stream…'}
                   </span>
                   <span>{Math.round(progress)}%</span>
                 </div>

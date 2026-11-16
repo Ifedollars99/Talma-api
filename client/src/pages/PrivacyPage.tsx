@@ -29,7 +29,7 @@ export default function PrivacyPage() {
         <p>We collect the following categories of information:</p>
         <LegalList>
           <li>
-            <strong>Account information:</strong> your username, email address, password (stored
+            <strong>Account information:</strong> your name, email address, password (stored
             only as an Argon2id hash), account role, and optional profile details such as avatar,
             bio, gender, country, state, language and timezone.
           </li>

@@ -2,16 +2,14 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useDeletePost, useFeed, useToggleLike } from '../../hooks/usePosts'
 import { useAuth } from '../../lib/auth'
-import type { FeedTab, Message } from '../../types'
+import type { FeedTab } from '../../types'
 import Avatar from '../profile/Avatar'
 import Modal from '../ui/Modal'
+import YouTubeVideoLink from '../videos/YouTubeVideoLink'
 
 interface DashboardFeedProps {
-  messages: Message[]
-  notifications: number
-  username: string
   onOpenSearch: () => void
-  /** Opens the creator upload flow (Home - Upload a video). */
+  /** Opens the creator upload flow (Classroom - Upload a video). */
   onUpload: () => void
 }
 
@@ -33,18 +31,15 @@ function formatTimeAgo(timestamp: string): string {
   return 'Just now'
 }
 
-export default function DashboardFeed({
-  messages,
-  notifications,
-  username,
-  onOpenSearch,
-  onUpload,
-}: DashboardFeedProps) {
+export default function DashboardFeed({ onOpenSearch, onUpload }: DashboardFeedProps) {
   const [feedTab, setFeedTab] = useState<FeedTab>('foryou')
   const [postToDelete, setPostToDelete] = useState<string | null>(null)
 
   const { user } = useAuth()
-  const isCreator = user?.creatorStatus === 'approved' || user?.role === 'admin'
+  const isEducator =
+    user?.role === 'creator' || user?.role === 'lecturer' || user?.role === 'admin'
+  const isCreator =
+    isEducator && (user?.creatorStatus === 'approved' || user?.role === 'admin')
 
   const { data, isLoading, isError } = useFeed({ tab: feedTab })
   const deletePost = useDeletePost()
@@ -63,26 +58,10 @@ export default function DashboardFeed({
 
   return (
     <>
-      {/* ============ MOBILE X / TWITTER HOME (mobile only) ============ */}
+      {/* ============ MOBILE X / TWITTER CLASSROOM (mobile only) ============ */}
       <div className="lg:hidden -mx-4 -mt-4">
-        {/* Mobile Welcome (same as desktop, compact) â€” before tabs */}
-        <div className="welcome-card mx-4 mt-4 mb-3 relative overflow-hidden bg-gradient-to-br from-[#0a0a0a] via-[#0a0a0a] to-[#1f1f1f] rounded-2xl px-5 py-4 text-white shadow-lg">
-          <div className="welcome-card__glow absolute -top-20 -right-20 w-40 h-40 bg-[#f5c842]/10 rounded-full blur-3xl" />
-          <div className="relative z-10">
-            <h1 className="welcome-card__title font-heading text-xl font-semibold">
-              Welcome back, <span className="text-[#f5c842]">{username}</span>
-            </h1>
-            <p className="welcome-card__meta text-sm text-white/70 leading-relaxed mt-1">
-              You have{' '}
-              <span className="text-[#f5c842] font-medium">{notifications} new notifications</span>{' '}
-              and <span className="text-[#86efac] font-medium">{messages.length} unread</span>{' '}
-              messages waiting for you.
-            </p>
-          </div>
-        </div>
-
         {/* Creator search */}
-        <div className="px-4 pb-3 pt-1">
+        <div className="px-4 pb-3 pt-4">
           <button
             type="button"
             onClick={onOpenSearch}
@@ -198,10 +177,13 @@ export default function DashboardFeed({
                     <img src={post.mediaUrl} alt="" className="w-full max-h-72 object-cover" />
                   </div>
                 )}
-                {post.mediaType === 'video' && post.mediaUrl && (
-                  <div className="mt-2 rounded-2xl overflow-hidden border border-[#e6e9e6]">
-                    <video src={post.mediaUrl} className="w-full max-h-72 object-cover" controls />
-                  </div>
+                {post.mediaType === 'video' && (
+                  <YouTubeVideoLink
+                    href={post.youtubeUrl}
+                    mediaUrl={post.mediaUrl}
+                    title={post.content}
+                    className="mt-2 max-h-72"
+                  />
                 )}
                 <div className="flex items-center justify-between mt-2 -ml-2 max-w-[300px]">
                   <button
@@ -231,31 +213,16 @@ export default function DashboardFeed({
         </div>
 
         {/* Mobile FAB (upload) */}
-        <button
-          type="button"
-          onClick={onUpload}
-          aria-label="Upload a video"
-          className="fixed bottom-[78px] right-4 z-40 w-14 h-14 bg-[#f5c842] rounded-full shadow-xl flex items-center justify-center text-[#0a0a0a]"
-        >
-          <i className="bi bi-cloud-arrow-up text-2xl" />
-        </button>
-      </div>
-
-      {/* Welcome Section â€” compact greeting (DESKTOP ONLY) */}
-      <div className="welcome-card hidden lg:block relative overflow-hidden bg-gradient-to-br from-[#0a0a0a] via-[#0a0a0a] to-[#1f1f1f] rounded-2xl px-8 py-6 text-white shadow-lg">
-        <div className="welcome-card__glow absolute -top-24 -right-16 w-56 h-56 bg-[#f5c842]/10 rounded-full blur-3xl" />
-        <div className="welcome-card__glow welcome-card__glow--green absolute -bottom-24 -left-16 w-56 h-56 bg-[#3a8f4d]/20 rounded-full blur-3xl" />
-
-        <div className="relative z-10 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-          <h1 className="welcome-card__title font-heading text-2xl xl:text-3xl font-semibold">
-            Welcome back, <span className="text-[#f5c842]">{username}</span>
-          </h1>
-          <p className="welcome-card__meta text-sm text-white/70">
-            <span className="text-[#f5c842] font-medium">{notifications} new notifications</span>{' '}
-            and <span className="text-[#7cb342] font-medium">{messages.length} unread</span> messages
-            waiting.
-          </p>
-        </div>
+        {isCreator && (
+          <button
+            type="button"
+            onClick={onUpload}
+            aria-label="Upload a video"
+            className="fixed bottom-[78px] right-4 z-40 w-14 h-14 bg-[#f5c842] rounded-full shadow-xl flex items-center justify-center text-[#0a0a0a]"
+          >
+            <i className="bi bi-cloud-arrow-up text-2xl" />
+          </button>
+        )}
       </div>
 
       {/* Desktop creator search */}
@@ -424,7 +391,7 @@ export default function DashboardFeed({
                 <p className="text-base text-[#0a0a0a] leading-relaxed">{post.content}</p>
               </div>
 
-              {/* Post Media */}
+              {/* Post Media — images and videos uploaded with the post */}
               {post.mediaType === 'image' && post.mediaUrl && (
                 <div className="mb-6 ml-18 relative group rounded-xl overflow-hidden border border-[#e6e9e6]">
                   <img src={post.mediaUrl} alt={post.content} className="w-full max-h-96 object-cover" />
@@ -440,18 +407,13 @@ export default function DashboardFeed({
                 </div>
               )}
 
-              {post.mediaType === 'video' && post.mediaUrl && (
-                <div className="mb-6 ml-18 relative group rounded-xl overflow-hidden border border-[#e6e9e6]">
-                  <video src={post.mediaUrl} className="w-full max-h-96 object-cover" controls />
-                  <button
-                    type="button"
-                    onClick={() => downloadMedia(post.mediaUrl as string, `${post.author}-${post.id}.mp4`)}
-                    className="absolute top-4 right-4 bg-[#0a0a0a]/80 hover:bg-[#0a0a0a] text-white p-3 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center space-x-2 shadow-lg"
-                    title="Download video"
-                  >
-                    <i className="bi bi-download text-lg" />
-                    <span className="text-sm font-medium">Download</span>
-                  </button>
+              {post.mediaType === 'video' && (
+                <div className="mb-6 ml-18 max-w-xl">
+                  <YouTubeVideoLink
+                    href={post.youtubeUrl}
+                    mediaUrl={post.mediaUrl}
+                    title={post.content}
+                  />
                 </div>
               )}
 

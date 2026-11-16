@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ApiError } from '../../lib/apiClient'
+import { videoPeriodLabel } from '../../lib/videoPeriod'
 import { useApproveVideo, useRejectVideo, useReviewQueue } from '../../hooks/useVideos'
 import Modal from '../ui/Modal'
 import type { VideoItem } from '../../types'
@@ -61,7 +62,7 @@ export default function ReviewPanel({ onSuccess, onError }: ReviewPanelProps) {
       { id: rejecting.id, reason: reason.trim() },
       {
         onSuccess: () => {
-          onSuccess(`“${rejecting.title}” was rejected and removed from YouTube.`)
+          onSuccess(`“${rejecting.title}” was rejected and its upload was deleted.`)
           setRejecting(null)
           setReason('')
         },
@@ -113,7 +114,7 @@ export default function ReviewPanel({ onSuccess, onError }: ReviewPanelProps) {
           Nothing waiting for review
         </h3>
         <p className="mx-auto mt-1 max-w-md text-[#4d554d]">
-          Creator uploads appear here after YouTube finishes processing them.
+          Creator uploads appear here after the video provider finishes processing them.
         </p>
       </div>
     )
@@ -123,12 +124,13 @@ export default function ReviewPanel({ onSuccess, onError }: ReviewPanelProps) {
     <div className="space-y-4">
       <div className="rounded-xl border border-[#f5c842]/50 bg-[#fdf5d7] px-4 py-3 text-sm text-[#6b5400]">
         <i className="bi bi-info-circle me-2" />
-        Each upload is <strong>unlisted</strong> and hidden from the library until you approve
-        it. Watch it in YouTube Studio before publishing.
+        Each upload stays <strong>private</strong> and hidden from the library until you
+        approve it. Preview it from the Library tab before publishing.
       </div>
 
       {videos.map((video) => {
         const approving = approve.isPending && approve.variables?.id === video.id
+        const period = videoPeriodLabel(video)
         return (
           <article
             key={video.id}
@@ -167,13 +169,21 @@ export default function ReviewPanel({ onSuccess, onError }: ReviewPanelProps) {
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 rounded-lg border border-[#e6e9e6] px-3 py-1.5 text-xs font-semibold text-[#4d554d] hover:bg-[#f7f9f7]"
                     >
-                      <i className="bi bi-youtube text-[#c4302b]" />
-                      Open in YouTube Studio
+                      <i
+                        className={
+                          video.provider === 'cloudflare'
+                            ? 'bi bi-cloud'
+                            : 'bi bi-youtube text-[#c4302b]'
+                        }
+                      />
+                      {video.provider === 'cloudflare'
+                        ? 'Open in Cloudflare'
+                        : 'Open in YouTube Studio'}
                     </a>
                   )}
                 </div>
 
-                {(video.subject || video.classLevel) && (
+                {(video.subject || video.classLevel || period) && (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {video.subject && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-[#f5f9e8] px-2.5 py-1 text-[11px] font-semibold text-[#2f6b3d]">
@@ -185,6 +195,12 @@ export default function ReviewPanel({ onSuccess, onError }: ReviewPanelProps) {
                       <span className="inline-flex items-center gap-1 rounded-full bg-[#fdf5d7] px-2.5 py-1 text-[11px] font-semibold text-[#8a6d00]">
                         <i className="bi bi-mortarboard" />
                         {video.classLevel}
+                      </span>
+                    )}
+                    {period && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[#eef7ff] px-2.5 py-1 text-[11px] font-semibold text-[#1d4ed8]">
+                        <i className="bi bi-collection-play" />
+                        {period}
                       </span>
                     )}
                   </div>
@@ -262,7 +278,7 @@ export default function ReviewPanel({ onSuccess, onError }: ReviewPanelProps) {
           Reject “{rejecting?.title}”?
         </h3>
         <p className="mt-1 text-sm text-[#4d554d]">
-          The YouTube copy will be deleted. The creator will see your reason in “My videos”.
+          The uploaded copy will be deleted. The creator will see your reason in “My videos”.
         </p>
         <label htmlFor="reject-reason" className="mt-4 block text-sm font-medium text-[#4d554d]">
           Reason

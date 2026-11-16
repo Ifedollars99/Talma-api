@@ -13,6 +13,11 @@ import {
 } from '../../lib/profileOptions'
 import { profileKeys } from '../../hooks/useProfile'
 import { postKeys } from '../../hooks/usePosts'
+import {
+  isWhatsAppGroupUrl,
+  normalizeWhatsAppUrl,
+  WHATSAPP_LINK_ERROR,
+} from '../../lib/whatsapp'
 import Avatar from '../profile/Avatar'
 import AvatarUploader from '../profile/AvatarUploader'
 import ThemeSelector from './ThemeSelector'
@@ -59,6 +64,7 @@ export default function SettingsView() {
   const [timezone, setTimezone] = useState(user?.timezone || 'Africa/Lagos (WAT)')
   const [bio, setBio] = useState(user?.bio ?? '')
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl ?? '')
+  const [whatsappUrl, setWhatsappUrl] = useState(user?.whatsappUrl ?? '')
   const [gender, setGender] = useState<'male' | 'female' | ''>(user?.gender ?? '')
   const [emailNotifications, setEmailNotifications] = useState(user?.emailNotifications ?? true)
   const [privacyPublic, setPrivacyPublic] = useState(user?.privacyPublic ?? false)
@@ -75,14 +81,20 @@ export default function SettingsView() {
     setTimezone(user.timezone || 'Africa/Lagos (WAT)')
     setBio(user.bio ?? '')
     setAvatarUrl(user.avatarUrl ?? '')
+    setWhatsappUrl(user.whatsappUrl ?? '')
     setGender(user.gender ?? '')
     setEmailNotifications(user.emailNotifications)
     setPrivacyPublic(user.privacyPublic)
   }, [user])
 
   const save = async () => {
-    if (!username.trim()) {
-      setStatus({ tone: 'error', text: 'Username cannot be empty.' })
+    if (username.trim().length < 2) {
+      setStatus({ tone: 'error', text: 'Name must be at least 2 characters.' })
+      return
+    }
+    const trimmedWhatsApp = whatsappUrl.trim()
+    if (trimmedWhatsApp && !isWhatsAppGroupUrl(trimmedWhatsApp)) {
+      setStatus({ tone: 'error', text: WHATSAPP_LINK_ERROR })
       return
     }
     setSaving(true)
@@ -96,6 +108,7 @@ export default function SettingsView() {
         timezone,
         bio: bio.trim(),
         avatarUrl,
+        whatsappUrl: normalizeWhatsAppUrl(trimmedWhatsApp),
         ...(gender ? { gender } : {}),
         emailNotifications,
         privacyPublic,
@@ -134,6 +147,7 @@ export default function SettingsView() {
   }
 
   const roleLabelText = roleLabel(user?.role)
+  const isEducator = user?.role === 'creator' || user?.role === 'lecturer'
   const memberSince = user?.createdAt
     ? new Date(user.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     : '—'
@@ -214,7 +228,7 @@ export default function SettingsView() {
             </div>
             <div>
               <label htmlFor="settings-username" className={labelClass}>
-                Username
+                Name
               </label>
               <input
                 id="settings-username"
@@ -408,32 +422,65 @@ export default function SettingsView() {
         </div>
       </section>
 
-      {/* Creator verification */}
-      {user && user.role !== 'admin' && (
+      {/* Educator verification */}
+      {user && isEducator && (
         <section className={cardClass}>
-          <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="mb-5">
+            <p className="font-heading text-xl text-[#0a0a0a]">Educator account</p>
+            <p className="text-sm text-[#4d554d]">
+              {user.creatorStatus === 'approved'
+                ? 'Your account is verified. Keep your WhatsApp group link current so students can join you from Home.'
+                : 'Add your WhatsApp group link, then verify your email to upload videos and show the educator badge on your profile.'}
+            </p>
+          </div>
+
+          <div className="space-y-4">
             <div>
-              <p className="font-heading text-xl text-[#0a0a0a]">Creator account</p>
-              <p className="text-sm text-[#4d554d]">
-                {user.creatorStatus === 'approved'
-                  ? 'Your account is verified. You can upload videos and attach media to posts.'
-                  : 'Verify your email to unlock video and media uploads and show the creator badge on your profile.'}
+              <label htmlFor="settings-whatsapp" className={labelClass}>
+                WhatsApp group or community link
+              </label>
+              <input
+                id="settings-whatsapp"
+                value={whatsappUrl}
+                type="url"
+                onChange={(event) => setWhatsappUrl(event.target.value)}
+                placeholder="https://chat.whatsapp.com/…"
+                className={fieldClass}
+              />
+              <p className="mt-1 text-xs text-[#7b857b]">
+                Students see this on your Home card. A valid group or community link is required
+                before verification and before uploading lessons.
               </p>
             </div>
-            {user.creatorStatus === 'approved' ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#f5c842] bg-[#fdf5d7] px-3 py-1.5 text-sm font-semibold text-[#8a6d00]">
-                <i className="bi bi-patch-check-fill" />
-                Verified creator
-              </span>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setVerifyOpen(true)}
-                className="rounded-xl bg-[#f5c842] px-5 py-2.5 font-semibold text-[#0a0a0a] transition-colors hover:bg-[#e9b92b]"
-              >
-                Verify to become a creator
-              </button>
-            )}
+
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <p className="font-medium text-[#0a0a0a]">
+                  {user.creatorStatus === 'approved'
+                    ? 'Verified educator'
+                    : 'Verification status'}
+                </p>
+                <p className="text-sm text-[#4d554d]">
+                  {user.creatorStatus === 'approved'
+                    ? 'Your profile shows the educator badge.'
+                    : 'Email verification is required before your first upload.'}
+                </p>
+              </div>
+              {user.creatorStatus === 'approved' ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-[#f5c842] bg-[#fdf5d7] px-3 py-1.5 text-sm font-semibold text-[#8a6d00]">
+                  <i className="bi bi-patch-check-fill" />
+                  Verified educator
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setVerifyOpen(true)}
+                  className="rounded-xl bg-[#f5c842] px-5 py-2.5 font-semibold text-[#0a0a0a] transition-colors hover:bg-[#e9b92b]"
+                >
+                  Verify to become an educator
+                </button>
+              )}
+            </div>
           </div>
         </section>
       )}

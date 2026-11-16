@@ -5,6 +5,7 @@ import type {
   VideoItem,
   VideoPurchase,
   VideoUploadStart,
+  VideoWatchResult,
 } from '../types'
 
 export const videoKeys = {
@@ -13,12 +14,18 @@ export const videoKeys = {
   review: ['videos', 'review'] as const,
 }
 
+/** True while any entry is still encoding at the provider. */
+function hasProcessing(videos: VideoItem[] | undefined): boolean {
+  return Boolean(videos?.some((video) => video.status === 'processing'))
+}
+
 /** The published video catalogue, with the viewer's purchase state. */
 export function useVideos() {
   return useQuery({
     queryKey: videoKeys.all,
     queryFn: () => api.get<{ videos: VideoItem[] }>('/videos'),
     staleTime: 30 * 1000,
+    refetchInterval: (query) => (hasProcessing(query.state.data?.videos) ? 5_000 : false),
   })
 }
 
@@ -29,16 +36,20 @@ export function useMyVideos(enabled = true) {
     queryFn: () => api.get<{ videos: VideoItem[] }>('/videos/mine'),
     enabled,
     staleTime: 15 * 1000,
+    refetchInterval: (query) => (hasProcessing(query.state.data?.videos) ? 5_000 : false),
   })
 }
 
-/** Admin review queue: uploads that finished on YouTube but are still private. */
+/** Admin review queue: uploads that finished encoding but are not published. */
 export function useReviewQueue(enabled = true) {
   return useQuery({
     queryKey: videoKeys.review,
     queryFn: () => api.get<{ videos: VideoItem[] }>('/videos/review'),
     enabled,
     staleTime: 15 * 1000,
+    // Encoding finishes asynchronously; keep the queue fresh while the admin is
+    // signed in so a newly processed upload appears without a manual reload.
+    refetchInterval: 15_000,
   })
 }
 
@@ -114,6 +125,10 @@ export interface StartVideoUploadInput {
   description: string
   subject: string
   classLevel: string
+  /** Position of this lesson in a series, e.g. `1` for "1 of 4". */
+  periodNumber: number
+  /** Total lessons in the series, e.g. `4` for "1 of 4". */
+  periodTotal: number
   /** What students pay; `0` publishes a free lesson. */
   priceNaira: number
   fileName: string
@@ -123,8 +138,8 @@ export interface StartVideoUploadInput {
 }
 
 /**
- * Reserves a YouTube resumable upload session. The returned `uploadUrl` is
- * used by the browser to send the file straight to Google.
+ * Reserves a direct upload session. New uploads go straight to Cloudflare
+ * Stream; the response says which protocol the browser should use.
  */
 export function useStartVideoUpload() {
   return useMutation({
@@ -134,9 +149,8 @@ export function useStartVideoUpload() {
 }
 
 /**
- * Sends the creator's video file to the API, which forwards the bytes to the
- * YouTube resumable session. The browser talks to Talma (same origin) instead of
- * to Google directly, avoiding the CORS block on Google's resumable endpoint.
+ * Legacy YouTube fallback: sends the creator's file to the API, which forwards
+ * it to the YouTube resumable session. New uploads go directly to Cloudflare.
  */
 export function useUploadVideoFile() {
   return useMutation({
@@ -148,19 +162,32 @@ export function useUploadVideoFile() {
   })
 }
 
-/** Finalizes the upload after Google returns the new video id. */
+/** Finalizes the upload after the provider reports the new video. */
 export function useCompleteVideoUpload() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, youtubeVideoId }: { id: string; youtubeVideoId: string }) =>
-      api.post<{ video: VideoItem }>(`/videos/${id}/upload-complete`, { youtubeVideoId }),
+    mutationFn: ({
+      id,
+      ...body
+    }: {
+      id: string
+      youtubeVideoId?: string
+      streamUid?: string
+    }) => api.post<{ video: VideoItem }>(`/videos/${id}/upload-complete`, body),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: videoKeys.all })
     },
   })
 }
 
-/** Admin-only: approve a pending upload and make it unlisted on YouTube. */
+/** Mints a fresh signed playback URL for a Cloudflare or YouTube video. */
+export function useWatchVideo() {
+  return useMutation({
+    mutationFn: (id: string) => api.get<VideoWatchResult>(`/videos/${id}/watch`),
+  })
+}
+
+/** Admin-only: approve a pending upload and publish it. */
 export function useApproveVideo() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -172,7 +199,7 @@ export function useApproveVideo() {
   })
 }
 
-/** Admin-only: reject a pending upload and delete the YouTube copy. */
+/** Admin-only: reject a pending upload and delete the provider copy. */
 export function useRejectVideo() {
   const queryClient = useQueryClient()
   return useMutation({

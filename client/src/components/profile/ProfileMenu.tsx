@@ -146,8 +146,8 @@ export default function ProfileMenu() {
     setSaving(true)
     try {
       const name = editableUsername.trim()
-      if (name.length < 3) {
-        setSaveMsg({ tone: 'error', text: 'Username must be at least 3 characters.' })
+      if (name.length < 2) {
+        setSaveMsg({ tone: 'error', text: 'Name must be at least 2 characters.' })
         return
       }
       await updateProfile({
@@ -381,7 +381,7 @@ export default function ProfileMenu() {
                 </div>
                 <div>
                   <label htmlFor="settings-username" className="block text-sm font-medium text-[#4d554d] mb-1.5">
-                    Username
+                    Name
                   </label>
                   <input
                     id="settings-username"

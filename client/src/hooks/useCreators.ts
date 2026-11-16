@@ -26,8 +26,8 @@ export function useRequestCreatorVerification() {
 export function useConfirmCreatorVerification() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (code: string) =>
-      api.post<CreatorVerificationResult>('/creators/verify/confirm', { code }),
+    mutationFn: (input: { code: string; whatsappUrl?: string }) =>
+      api.post<CreatorVerificationResult>('/creators/verify/confirm', input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: creatorKeys.all })
     },

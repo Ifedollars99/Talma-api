@@ -45,8 +45,8 @@ export default function EditProfileModal({ open, onClose }: EditProfileModalProp
 
   const save = async () => {
     const nextUsername = username.trim()
-    if (nextUsername.length < 3) {
-      setStatus({ tone: 'error', text: 'Username must be at least 3 characters.' })
+    if (nextUsername.length < 2) {
+      setStatus({ tone: 'error', text: 'Name must be at least 2 characters.' })
       return
     }
 
@@ -102,7 +102,7 @@ export default function EditProfileModal({ open, onClose }: EditProfileModalProp
 
         <div>
           <label htmlFor="edit-profile-username" className={labelClass}>
-            Username
+            Name
           </label>
           <input
             id="edit-profile-username"

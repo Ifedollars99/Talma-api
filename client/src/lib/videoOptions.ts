@@ -93,5 +93,14 @@ export const VIDEO_CLASS_LEVELS = [
   'University 600 Level',
 ] as const
 
+/** Largest lesson series supported by the upload form. */
+export const VIDEO_MAX_PERIODS = 30
+
+/** Choices for "period 1 of N" selectors while uploading a lesson. */
+export const VIDEO_PERIOD_OPTIONS = Array.from(
+  { length: VIDEO_MAX_PERIODS },
+  (_, index) => index + 1,
+)
+
 export type VideoSubject = (typeof VIDEO_SUBJECTS)[number]
 export type VideoClassLevel = (typeof VIDEO_CLASS_LEVELS)[number]

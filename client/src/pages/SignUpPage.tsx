@@ -7,16 +7,23 @@ import '../styles/auth.css'
 type MessageType = 'success' | 'error'
 type Category = '' | 'user' | 'creator'
 
+const MAX_NAME_LENGTH = 50
+const MAX_TITLE_LENGTH = 20
+const NAME_PATTERN = /^[\p{L}\p{M}0-9_][\p{L}\p{M}0-9 .'’_-]*$/u
+const TITLE_PATTERN = /^[\p{L}\p{M}][\p{L}\p{M} .'’_-]*$/u
+const EDUCATOR_TITLES = ['Mr', 'Mrs', 'Ms', 'Miss', 'Dr', 'Doctor', 'Prof', 'Professor']
+
 /**
  * Sign-up screen — a direct port of the original `SignUpPage.vue`, now wired
- * to the Talma API. Accounts are created as either a normal user or a creator.
+ * to the Talma API. Accounts are created as either a student or an educator.
  */
 export default function SignUpPage() {
   const { register } = useAuth()
   const navigate = useNavigate()
 
   const [category, setCategory] = useState<Category>('')
-  const [username, setUsername] = useState('')
+  const [educatorTitle, setEducatorTitle] = useState('')
+  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [agreeTerms, setAgreeTerms] = useState(false)
@@ -26,7 +33,8 @@ export default function SignUpPage() {
   const [showPassword, setShowPassword] = useState(false)
 
   const [categoryError, setCategoryError] = useState('')
-  const [usernameError, setUsernameError] = useState('')
+  const [titleError, setTitleError] = useState('')
+  const [nameError, setNameError] = useState('')
   const [emailError, setEmailError] = useState('')
   const [passwordError, setPasswordError] = useState('')
   const [termsError, setTermsError] = useState('')
@@ -62,14 +70,43 @@ export default function SignUpPage() {
     setCategoryError(category ? '' : 'Please select your category')
   }
 
-  const validateUsername = () => {
-    if (username.length < 3) {
-      setUsernameError('Username must be at least 3 characters')
-    } else if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-      setUsernameError('Username can only contain letters, numbers, and underscores')
+  const validateName = () => {
+    const value = name.trim()
+    if (value.length < 2) {
+      setNameError('Name must be at least 2 characters')
+    } else if (value.length > MAX_NAME_LENGTH) {
+      setNameError(`Name must be at most ${MAX_NAME_LENGTH} characters`)
+    } else if (!NAME_PATTERN.test(value)) {
+      setNameError(
+        'Name can only contain letters, spaces, apostrophes, hyphens and periods',
+      )
     } else {
-      setUsernameError('')
+      setNameError('')
     }
+  }
+
+  const validateTitle = () => {
+    if (category !== 'creator') {
+      setTitleError('')
+      return
+    }
+    const value = educatorTitle.trim()
+    if (!value) {
+      setTitleError('')
+    } else if (value.length > MAX_TITLE_LENGTH) {
+      setTitleError(`Title must be at most ${MAX_TITLE_LENGTH} characters`)
+    } else if (!TITLE_PATTERN.test(value)) {
+      setTitleError('Title can only contain letters, spaces, apostrophes, hyphens and periods')
+    } else {
+      setTitleError('')
+    }
+  }
+
+  const fullName = () => {
+    const value = name.trim().replace(/\s+/g, ' ')
+    if (category !== 'creator') return value
+    const title = educatorTitle.trim().replace(/\s+/g, ' ')
+    return title ? `${title} ${value}` : value
   }
 
   const validateEmail = () => {
@@ -95,12 +132,19 @@ export default function SignUpPage() {
 
   const isFormValid =
     category.length > 0 &&
-    username.length > 0 &&
+    name.trim().length >= 2 &&
+    name.trim().length <= MAX_NAME_LENGTH &&
+    NAME_PATTERN.test(name.trim()) &&
+    (category !== 'creator' ||
+      !educatorTitle.trim() ||
+      (educatorTitle.trim().length <= MAX_TITLE_LENGTH &&
+        TITLE_PATTERN.test(educatorTitle.trim()))) &&
     email.length > 0 &&
     password.length >= 6 &&
     agreeTerms &&
     !categoryError &&
-    !usernameError &&
+    !titleError &&
+    !nameError &&
     !emailError &&
     !passwordError &&
     !termsError
@@ -109,19 +153,27 @@ export default function SignUpPage() {
     event.preventDefault()
 
     validateCategory()
-    validateUsername()
+    validateTitle()
+    validateName()
     validateEmail()
     validatePassword()
     validateTerms()
 
     if (
       !category ||
-      !username ||
+      name.trim().length < 2 ||
+      name.trim().length > MAX_NAME_LENGTH ||
+      !NAME_PATTERN.test(name.trim()) ||
+      (category === 'creator' &&
+        educatorTitle.trim() &&
+        (educatorTitle.trim().length > MAX_TITLE_LENGTH ||
+          !TITLE_PATTERN.test(educatorTitle.trim()))) ||
       !email ||
       password.length < 6 ||
       !agreeTerms ||
       categoryError ||
-      usernameError ||
+      titleError ||
+      nameError ||
       emailError ||
       passwordError ||
       termsError
@@ -134,14 +186,15 @@ export default function SignUpPage() {
 
     try {
       const user = await register({
-        username,
+        username: fullName(),
         email,
         password,
         role: category,
       })
 
       setCategory('')
-      setUsername('')
+      setEducatorTitle('')
+      setName('')
       setEmail('')
       setPassword('')
       setAgreeTerms(false)
@@ -210,8 +263,13 @@ export default function SignUpPage() {
                   required
                   value={category}
                   onChange={(event) => {
-                    setCategory(event.target.value as Category)
+                    const nextCategory = event.target.value as Category
+                    setCategory(nextCategory)
                     setCategoryError('')
+                    if (nextCategory !== 'creator') {
+                      setEducatorTitle('')
+                      setTitleError('')
+                    }
                   }}
                   onBlur={validateCategory}
                   className={`w-full pl-10 pr-4 py-3 bg-white/5 border rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#f5c842] focus:border-transparent transition-all duration-200 appearance-none ${
@@ -222,10 +280,10 @@ export default function SignUpPage() {
                     Select your category
                   </option>
                   <option value="user" className="bg-[#0a0a0a] text-white">
-                    Normal user
+                    Student
                   </option>
                   <option value="creator" className="bg-[#0a0a0a] text-white">
-                    Creator
+                    Educator
                   </option>
                 </select>
                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
@@ -235,37 +293,84 @@ export default function SignUpPage() {
               {categoryError && <p className="text-[#ffd166] text-sm">{categoryError}</p>}
               {category === 'creator' && (
                 <p className="text-xs text-white/60">
-                  Creator accounts apply for approval from Multimedia before uploading lessons.
+                  Educator accounts apply for approval from Multimedia before uploading lessons.
                 </p>
               )}
             </div>
 
-            {/* Username Input */}
+            {/* Educator title — shown before the name */}
+            {category === 'creator' && (
+              <div className="space-y-2">
+                <label htmlFor="educator-title" className="block text-sm font-medium text-white/90">
+                  Title <span className="font-normal text-white/50">(optional)</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i className="bi bi-award text-white/55" />
+                  </div>
+                  <input
+                    id="educator-title"
+                    type="text"
+                    value={educatorTitle}
+                    list="educator-title-options"
+                    maxLength={MAX_TITLE_LENGTH}
+                    onChange={(event) => {
+                      setEducatorTitle(event.target.value)
+                      setTitleError('')
+                    }}
+                    onBlur={validateTitle}
+                    className={`w-full pl-10 pr-4 py-3 bg-white/5 border rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#f5c842] focus:border-transparent transition-all duration-200 ${
+                      titleError ? 'border-[#ffd166] ring-1 ring-[#ffd166]' : 'border-white/20'
+                    }`}
+                    placeholder="e.g. Mr, Mrs, Doctor, Professor"
+                  />
+                  <datalist id="educator-title-options">
+                    {EDUCATOR_TITLES.map((title) => (
+                      <option key={title} value={title} />
+                    ))}
+                  </datalist>
+                </div>
+                <p className="text-xs text-white/60">
+                  Choose a suggestion or type your title manually. It appears before your name
+                  on Talma.
+                </p>
+                {titleError && <p className="text-[#ffd166] text-sm">{titleError}</p>}
+              </div>
+            )}
+
+            {/* Name Input */}
             <div className="space-y-2">
-              <label htmlFor="username" className="block text-sm font-medium text-white/90">
-                Username *
+              <label htmlFor="name" className="block text-sm font-medium text-white/90">
+                Name *
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <i className="bi bi-person text-white/55" />
                 </div>
                 <input
-                  id="username"
+                  id="name"
                   type="text"
                   required
-                  value={username}
+                  value={name}
+                  maxLength={MAX_NAME_LENGTH}
                   onChange={(event) => {
-                    setUsername(event.target.value)
-                    setUsernameError('')
+                    setName(event.target.value)
+                    setNameError('')
                   }}
-                  onBlur={validateUsername}
+                  onBlur={validateName}
                   className={`w-full pl-10 pr-4 py-3 bg-white/5 border rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#f5c842] focus:border-transparent transition-all duration-200 ${
-                    usernameError ? 'border-[#ffd166] ring-1 ring-[#ffd166]' : 'border-white/20'
+                    nameError ? 'border-[#ffd166] ring-1 ring-[#ffd166]' : 'border-white/20'
                   }`}
-                  placeholder="Create a username"
+                  placeholder="Enter your full name"
                 />
               </div>
-              {usernameError && <p className="text-[#ffd166] text-sm">{usernameError}</p>}
+              {nameError && <p className="text-[#ffd166] text-sm">{nameError}</p>}
+              {category === 'creator' && educatorTitle.trim() && name.trim() && (
+                <p className="text-xs text-white/60">
+                  Your name will appear as{' '}
+                  <span className="font-medium text-white/90">{fullName()}</span>.
+                </p>
+              )}
             </div>
 
             {/* Email Input */}

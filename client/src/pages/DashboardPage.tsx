@@ -7,7 +7,8 @@ import { useMessages } from '../hooks/useMessages'
 import { useNotifications } from '../hooks/useNotifications'
 import ProfileMenu from '../components/profile/ProfileMenu'
 import CreatorSearchModal from '../components/profile/CreatorSearchModal'
-import DashboardFeed from '../components/dashboard/DashboardFeed'
+import WelcomeCard from '../components/dashboard/WelcomeCard'
+import HomeContent from '../components/dashboard/HomeContent'
 import ClassroomView from '../components/courses/CoursesView'
 import MessagesView from '../components/messages/MessagesView'
 import StudyAssistantView from '../components/assistant/StudyAssistantView'
@@ -163,18 +164,22 @@ export default function DashboardPage() {
           {/* Main Content Area */}
           <main className="flex-1 min-w-0">
             {activeTab === 'dashboard' && (
-              <div className="space-y-8">
-                <DashboardFeed
-                  messages={messages}
-                  notifications={notifications}
+              <div className="space-y-6 lg:space-y-8">
+                <WelcomeCard
                   username={username}
-                  onOpenSearch={() => setSearchOpen(true)}
-                  onUpload={() => setUploadOpen(true)}
+                  notifications={notifications}
+                  messageCount={messages.length}
                 />
+                <HomeContent />
               </div>
             )}
 
-            {activeTab === 'classroom' && <ClassroomView />}
+            {activeTab === 'classroom' && (
+              <ClassroomView
+                onOpenSearch={() => setSearchOpen(true)}
+                onUpload={() => setUploadOpen(true)}
+              />
+            )}
 
             {activeTab === 'videos' && (
               <VideosView

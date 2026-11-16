@@ -1,4 +1,5 @@
 import type { VideoItem } from '../../types'
+import { videoPeriodLabel } from '../../lib/videoPeriod'
 
 interface VideoCardProps {
   video: VideoItem
@@ -6,6 +7,7 @@ interface VideoCardProps {
   paying: boolean
   sharePercent: number
   onUnlock: (video: VideoItem) => void
+  onWatch: (video: VideoItem) => void
   onEdit: (video: VideoItem) => void
   onDelete: (video: VideoItem) => void
 }
@@ -48,6 +50,8 @@ function statusBadge(video: VideoItem, isAdmin: boolean): {
   switch (video.status) {
     case 'uploading':
       return { label: 'Uploading', className: 'bg-[#1d4ed8] text-white' }
+    case 'processing':
+      return { label: 'Processing', className: 'bg-[#1d4ed8] text-white' }
     case 'pending_review':
       return { label: 'In review', className: 'bg-[#f5c842] text-[#0a0a0a]' }
     case 'rejected':
@@ -67,13 +71,16 @@ export default function VideoCard({
   paying,
   sharePercent,
   onUnlock,
+  onWatch,
   onEdit,
   onDelete,
 }: VideoCardProps) {
   const duration = formatDuration(video.durationSeconds)
   const badge = statusBadge(video, isAdmin)
+  const period = videoPeriodLabel(video)
   const owner = !isAdmin && video.canManage
-  const canWatch = Boolean(video.watchUrl)
+  const isCloudflare = video.provider === 'cloudflare'
+  const canWatch = video.canWatch
   const canEdit = isAdmin && (video.status === 'published' || video.status === 'draft')
   const canDelete = video.canManage
 
@@ -130,7 +137,7 @@ export default function VideoCard({
           <p className="mt-0.5 text-xs text-[#7b857b]">By {video.creator.name}</p>
         )}
 
-        {(video.subject || video.classLevel) && (
+        {(video.subject || video.classLevel || period) && (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {video.subject && (
               <span className="inline-flex items-center gap-1 rounded-full bg-[#f5f9e8] px-2.5 py-1 text-[11px] font-semibold text-[#2f6b3d]">
@@ -142,6 +149,12 @@ export default function VideoCard({
               <span className="inline-flex items-center gap-1 rounded-full bg-[#fdf5d7] px-2.5 py-1 text-[11px] font-semibold text-[#8a6d00]">
                 <i className="bi bi-mortarboard" />
                 {video.classLevel}
+              </span>
+            )}
+            {period && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-[#eef7ff] px-2.5 py-1 text-[11px] font-semibold text-[#1d4ed8]">
+                <i className="bi bi-collection-play" />
+                {period}
               </span>
             )}
           </div>
@@ -174,15 +187,26 @@ export default function VideoCard({
           </div>
 
           {canWatch ? (
-            <a
-              href={video.watchUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-xl bg-[#0a0a0a] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1f1f1f]"
-            >
-              <i className="bi bi-youtube text-base text-[#f5c842]" />
-              {video.purchased ? 'Watch' : 'Preview'}
-            </a>
+            isCloudflare ? (
+              <button
+                type="button"
+                onClick={() => onWatch(video)}
+                className="inline-flex items-center gap-2 rounded-xl bg-[#0a0a0a] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1f1f1f]"
+              >
+                <i className="bi bi-play-circle text-base text-[#f5c842]" />
+                {video.purchased ? 'Watch' : 'Preview'}
+              </button>
+            ) : (
+              <a
+                href={video.watchUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-xl bg-[#0a0a0a] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1f1f1f]"
+              >
+                <i className="bi bi-youtube text-base text-[#f5c842]" />
+                {video.purchased ? 'Watch' : 'Preview'}
+              </a>
+            )
           ) : video.locked ? (
             <button
               type="button"
@@ -206,6 +230,7 @@ export default function VideoCard({
             <span className="text-right text-xs font-medium text-[#7b857b]">
               {video.status === 'pending_review' && 'Awaiting admin review'}
               {video.status === 'uploading' && 'Upload in progress'}
+              {video.status === 'processing' && 'Cloudflare is processing'}
               {video.status === 'rejected' && 'Not published'}
               {video.status === 'failed' && 'Upload failed'}
               {video.status === 'draft' && 'Draft'}
@@ -215,11 +240,15 @@ export default function VideoCard({
 
         <p className="mt-3 text-xs text-[#7b857b]">
           {video.purchased
-            ? 'Opens on YouTube in a new tab.'
+            ? isCloudflare
+              ? 'Streams privately in Talma with an expiring, signed link.'
+              : 'Opens on YouTube in a new tab.'
             : owner
               ? `You earn ${sharePercent}% of every sale of this lesson.`
               : isAdmin
-                ? 'Students pay this once; you can preview it any time.'
+                ? isCloudflare
+                  ? 'Students pay once. Playback is private and access-checked.'
+                  : 'Students pay this once; you can preview it any time.'
                 : 'Secure payment with Paystack. Unlocks instantly.'}
         </p>
 
@@ -252,8 +281,8 @@ export default function VideoCard({
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 rounded-lg border border-[#e6e9e6] px-3 py-1.5 text-xs font-semibold text-[#4d554d] hover:bg-[#f7f9f7]"
               >
-                <i className="bi bi-youtube text-[#c4302b]" />
-                Studio
+                <i className={isCloudflare ? 'bi bi-cloud' : 'bi bi-youtube text-[#c4302b]'} />
+                {isCloudflare ? 'Stream' : 'Studio'}
               </a>
             )}
           </div>

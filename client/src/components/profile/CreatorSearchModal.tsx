@@ -139,7 +139,7 @@ export default function CreatorSearchModal({ open, onClose }: CreatorSearchModal
             </p>
             <p className="mx-auto mt-1 max-w-xs text-sm text-[#7b857b]">
               {hasTerm
-                ? 'Try their username, a topic in their bio, or a different spelling.'
+                ? 'Try their name, a topic in their bio, or a different spelling.'
                 : 'Verified creators will appear here as the community grows.'}
             </p>
           </div>

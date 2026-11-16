@@ -5,6 +5,11 @@ import {
   useConfirmCreatorVerification,
   useRequestCreatorVerification,
 } from '../../hooks/useCreators'
+import {
+  isWhatsAppGroupUrl,
+  normalizeWhatsAppUrl,
+  WHATSAPP_LINK_ERROR,
+} from '../../lib/whatsapp'
 import Modal from '../ui/Modal'
 
 interface CreatorVerificationModalProps {
@@ -31,6 +36,7 @@ export default function CreatorVerificationModal({
 
   const [step, setStep] = useState<Step>('intro')
   const [code, setCode] = useState('')
+  const [whatsappUrl, setWhatsappUrl] = useState(user?.whatsappUrl ?? '')
   const [devCode, setDevCode] = useState<string | undefined>()
   const [previewUrl, setPreviewUrl] = useState<string | undefined>()
   const [delivered, setDelivered] = useState(true)
@@ -40,14 +46,19 @@ export default function CreatorVerificationModal({
     if (!open) return
     setStep('intro')
     setCode('')
+    setWhatsappUrl(user?.whatsappUrl ?? '')
     setDevCode(undefined)
     setPreviewUrl(undefined)
     setDelivered(true)
     setError(null)
-  }, [open])
+  }, [open, user?.whatsappUrl])
 
   const sendCode = () => {
     setError(null)
+    if (!isWhatsAppGroupUrl(whatsappUrl)) {
+      setError(WHATSAPP_LINK_ERROR)
+      return
+    }
     requestCode.mutate(undefined, {
       onSuccess: (result) => {
         setStep('code')
@@ -67,24 +78,34 @@ export default function CreatorVerificationModal({
 
   const verify = () => {
     setError(null)
+    if (!isWhatsAppGroupUrl(whatsappUrl)) {
+      setError(WHATSAPP_LINK_ERROR)
+      return
+    }
     if (!/^\d{6}$/.test(code.trim())) {
       setError('Enter the six-digit code from your email.')
       return
     }
-    confirmCode.mutate(code.trim(), {
-      onSuccess: async () => {
-        await refreshUser()
-        setStep('success')
-        onVerified?.()
+    confirmCode.mutate(
+      {
+        code: code.trim(),
+        whatsappUrl: normalizeWhatsAppUrl(whatsappUrl),
       },
-      onError: (caught) => {
-        setError(
-          caught instanceof ApiError
-            ? caught.message
-            : 'That code could not be verified. Please try again.',
-        )
+      {
+        onSuccess: async () => {
+          await refreshUser()
+          setStep('success')
+          onVerified?.()
+        },
+        onError: (caught) => {
+          setError(
+            caught instanceof ApiError
+              ? caught.message
+              : 'That code could not be verified. Please try again.',
+          )
+        },
       },
-    })
+    )
   }
 
   const close = () => {
@@ -113,10 +134,10 @@ export default function CreatorVerificationModal({
             id="creator-verification-title"
             className="font-heading text-2xl font-semibold text-[#0a0a0a]"
           >
-            Welcome to being a creator!
+            Welcome to being an educator!
           </h3>
           <p className="mt-2 text-sm text-[#4d554d]">
-            Your account is verified. Your profile now shows the creator badge, and you can
+            Your account is verified. Your WhatsApp community is now live on Home, and you can
             upload videos and media straight away.
           </p>
           <button
@@ -124,7 +145,7 @@ export default function CreatorVerificationModal({
             onClick={close}
             className="mt-6 w-full rounded-xl bg-[#0a0a0a] px-5 py-2.5 font-semibold text-white"
           >
-            Start creating
+            Start teaching
           </button>
         </div>
       ) : (
@@ -137,12 +158,30 @@ export default function CreatorVerificationModal({
               id="creator-verification-title"
               className="font-heading text-2xl font-semibold text-[#0a0a0a]"
             >
-              {step === 'intro' ? 'Verify to become a creator' : 'Enter your code'}
+              {step === 'intro' ? 'Verify to become an educator' : 'Enter your code'}
             </h3>
             <p className="mt-2 text-sm text-[#4d554d]">
               {step === 'intro'
-                ? 'Uploading media is for verified creators. We will email a six-digit code to confirm your account.'
+                ? 'Uploading lessons is for verified educators. Add your WhatsApp group and we will email a six-digit code to confirm your account.'
                 : `Enter the six-digit code we sent to ${user?.email ?? 'your email'}.`}
+            </p>
+          </div>
+
+          <div>
+            <label htmlFor="creator-whatsapp" className={labelClass}>
+              WhatsApp group or community link
+            </label>
+            <input
+              id="creator-whatsapp"
+              value={whatsappUrl}
+              onChange={(event) => setWhatsappUrl(event.target.value)}
+              type="url"
+              autoComplete="url"
+              placeholder="https://chat.whatsapp.com/…"
+              className={fieldClass}
+            />
+            <p className="mt-1 text-xs text-[#7b857b]">
+              Students will see this link on your Home card so they can join your community.
             </p>
           </div>
 

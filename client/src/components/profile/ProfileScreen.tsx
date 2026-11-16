@@ -7,6 +7,7 @@ import { usePublicProfile } from '../../hooks/useProfile'
 import { useToggleLike } from '../../hooks/usePosts'
 import { formatCount } from '../../lib/formatCount'
 import type { Post, PublicProfile } from '../../types'
+import YouTubeVideoLink from '../videos/YouTubeVideoLink'
 
 type ProfileTab = 'posts' | 'media'
 
@@ -143,7 +144,7 @@ export default function ProfileScreen({
               className="border-4 border-white shadow-lg"
             />
 
-            <div className="mb-2 flex items-center gap-2">
+            <div className="mb-2 flex flex-wrap items-center justify-end gap-2">
               {isOwnProfile ? (
                 onEdit ? (
                   <button
@@ -167,6 +168,17 @@ export default function ProfileScreen({
                     username={profile.username}
                     isFollowing={profile.isFollowing}
                   />
+                  {profile.whatsappUrl && (
+                    <a
+                      href={profile.whatsappUrl}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="inline-flex items-center gap-2 rounded-full bg-[#3a8f4d] px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#2f6b3d] sm:px-5"
+                    >
+                      <i className="bi bi-whatsapp" />
+                      <span className="hidden sm:inline">WhatsApp group</span>
+                    </a>
+                  )}
                   <button
                     type="button"
                     onClick={() => void shareProfile()}
@@ -188,7 +200,7 @@ export default function ProfileScreen({
               {isCreator && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-[#f5c842] bg-[#fdf5d7] px-2.5 py-0.5 text-[11px] font-semibold text-[#8a6d00]">
                   <i className="bi bi-patch-check-fill" />
-                  Creator
+                  Educator
                 </span>
               )}
             </div>
@@ -250,7 +262,7 @@ export default function ProfileScreen({
               </span>
               {isCreator && profile.creatorVerifiedAt && (
                 <span className="text-[#7b857b]">
-                  Creator since{' '}
+                  Educator since{' '}
                   <strong className="font-semibold text-[#0a0a0a]">
                     {formatProfileDate(profile.creatorVerifiedAt)}
                   </strong>
@@ -312,7 +324,7 @@ export default function ProfileScreen({
             </p>
             <p className="mt-1 text-sm text-[#7b857b]">
               {tab === 'media'
-                ? 'Photos and videos shared by this creator will appear here.'
+                ? 'Photos and videos shared by this educator will appear here.'
                 : 'When this account posts, it will show up here.'}
             </p>
           </div>
@@ -370,7 +382,7 @@ function ProfilePostCard({
           {isCreator && (
             <i
               className="bi bi-patch-check-fill text-sm text-[#8a6d00]"
-              aria-label="Verified creator"
+              aria-label="Verified educator"
             />
           )}
           <span className="truncate text-[13px] text-[#7b857b]">@{profile.username}</span>
@@ -392,10 +404,14 @@ function ProfilePostCard({
             <img src={post.mediaUrl} alt="" className="max-h-96 w-full object-cover" />
           </div>
         )}
-        {post.mediaType === 'video' && post.mediaUrl && (
-          <div className="mt-3 overflow-hidden rounded-2xl border border-[#e6e9e6]">
-            <video src={post.mediaUrl} controls className="max-h-96 w-full object-cover" />
-          </div>
+
+        {post.mediaType === 'video' && (
+          <YouTubeVideoLink
+            href={post.youtubeUrl}
+            mediaUrl={post.mediaUrl}
+            title={post.content}
+            className="mt-3 max-w-xl"
+          />
         )}
 
         <div className="mt-3 flex items-center justify-between max-w-md">

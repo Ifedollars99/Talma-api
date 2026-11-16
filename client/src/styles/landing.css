@@ -1018,6 +1018,12 @@
   .carousel__nav {
     display: none;
   }
+  .site-header__bar {
+    height: 84px;
+  }
+  .brand__name {
+    font-size: 3.1rem;
+  }
 }
 
 /* ---------- Reduced motion ---------- */
