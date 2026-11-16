@@ -22,6 +22,21 @@ describe('Authentication', () => {
     expect(JSON.stringify(response.body)).not.toContain('passwordHash')
   })
 
+  it('registers an educator with a full name and title prefix', async () => {
+    const response = await request(app)
+      .post('/api/auth/register')
+      .send({
+        username: 'Dr. Aisha Bello',
+        email: 'dr.aisha@example.com',
+        password: 'TalmaTest123',
+        role: 'creator',
+      })
+      .expect(201)
+
+    expect(response.body.user.username).toBe('Dr. Aisha Bello')
+    expect(response.body.user.role).toBe('creator')
+  })
+
   it('sets the refresh token in an HttpOnly cookie', async () => {
     const response = await request(app)
       .post('/api/auth/register')

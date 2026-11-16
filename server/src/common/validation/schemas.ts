@@ -11,9 +11,12 @@ export const mongoId = z
 export const usernameSchema = z
   .string()
   .trim()
-  .min(3, 'Username must be at least 3 characters')
-  .max(32, 'Username must be at most 32 characters')
-  .regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores')
+  .min(2, 'Name must be at least 2 characters')
+  .max(72, 'Name must be at most 72 characters')
+  .regex(
+    /^[\p{L}\p{M}0-9_][\p{L}\p{M}0-9 .'’_-]*$/u,
+    'Name can only contain letters, spaces, apostrophes, hyphens and periods',
+  )
 
 export const emailSchema = z
   .string()

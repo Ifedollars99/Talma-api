@@ -209,7 +209,10 @@ describe('Posts', () => {
     await request(app)
       .post('/api/creators/verify/confirm')
       .set('Authorization', `Bearer ${creator.accessToken}`)
-      .send({ code: verification.body.devCode })
+      .send({
+        code: verification.body.devCode,
+        whatsappUrl: 'https://chat.whatsapp.com/DrCreatorLessons',
+      })
       .expect(200)
 
     await request(app)

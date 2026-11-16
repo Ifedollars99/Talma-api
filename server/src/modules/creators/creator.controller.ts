@@ -37,8 +37,12 @@ export async function requestVerification(req: Request, res: Response): Promise<
 
 /** POST /api/creators/verify/confirm — upgrades the account to a creator. */
 export async function confirmVerification(req: Request, res: Response): Promise<void> {
-  const { code } = req.body as { code: string }
-  const result = await creatorService.confirmCreatorVerification(req.userId as string, code)
+  const { code, whatsappUrl } = req.body as { code: string; whatsappUrl?: string }
+  const result = await creatorService.confirmCreatorVerification(
+    req.userId as string,
+    code,
+    whatsappUrl,
+  )
   res.json(result)
 }
 

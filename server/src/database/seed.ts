@@ -70,6 +70,7 @@ const demoCreators = [
     state: 'Lagos',
     gender: 'female' as const,
     bio: 'Maths teacher making calculus and algebra feel simple. Short lessons, worked examples, zero panic.',
+    whatsappUrl: 'https://chat.whatsapp.com/AdaMathsCircle',
     posts: [
       {
         subject: 'Advanced Mathematics',
@@ -90,6 +91,7 @@ const demoCreators = [
     state: 'Greater Accra',
     gender: 'male' as const,
     bio: 'Physics tutor. I turn formulas into stories about motion, forces and energy.',
+    whatsappUrl: 'https://chat.whatsapp.com/KofiPhysicsRoom',
     posts: [
       {
         subject: 'Physics Science',
@@ -110,6 +112,7 @@ const demoCreators = [
     state: 'Nairobi',
     gender: 'female' as const,
     bio: 'Biology educator. Cells, genetics and exam-ready diagrams explained without the jargon.',
+    whatsappUrl: 'https://chat.whatsapp.com/ZaraBiologyLab',
     posts: [
       {
         subject: 'Biology',
@@ -130,6 +133,7 @@ const demoCreators = [
     state: 'Oyo',
     gender: 'male' as const,
     bio: 'Software engineer and part-time tutor. I explain programming with small, runnable examples.',
+    whatsappUrl: 'https://chat.whatsapp.com/TundeCodeClub',
     posts: [
       {
         subject: 'Computer Science',
@@ -150,6 +154,7 @@ const demoCreators = [
     state: 'Gauteng',
     gender: 'female' as const,
     bio: 'Study-skills coach. I share revision systems that actually fit a busy student timetable.',
+    whatsappUrl: 'https://chat.whatsapp.com/AmaraStudySquad',
     posts: [
       {
         subject: 'Study Skills',
@@ -379,6 +384,7 @@ async function seed(): Promise<void> {
         state: demo.state,
         gender: demo.gender,
         bio: demo.bio,
+        whatsappUrl: demo.whatsappUrl,
       })
     } else {
       creator.role = 'creator'
@@ -389,6 +395,7 @@ async function seed(): Promise<void> {
       creator.state = demo.state
       creator.gender = demo.gender
       creator.bio = demo.bio
+      creator.whatsappUrl ||= demo.whatsappUrl
       await creator.save()
     }
     creators.push(creator)

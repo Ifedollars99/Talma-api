@@ -20,6 +20,8 @@ export interface PostDocument {
   classLevel?: string
   mediaType: PostMediaType
   mediaUrl?: string
+  /** The YouTube copy of a video post. Playback always happens on YouTube. */
+  youtubeUrl?: string
   likeCount: number
   commentCount: number
   createdAt: Date
@@ -48,6 +50,7 @@ const postSchema = new Schema<PostDocument>(
       default: 'none',
     },
     mediaUrl: { type: String },
+    youtubeUrl: { type: String, trim: true, maxlength: 500 },
     likeCount: { type: Number, default: 0, min: 0 },
     commentCount: { type: Number, default: 0, min: 0 },
   },
@@ -73,6 +76,7 @@ export interface PostDto {
   classLevel?: string
   mediaType: PostMediaType
   mediaUrl?: string
+  youtubeUrl?: string
   likes: number
   comments: number
   likedByMe: boolean
@@ -96,6 +100,7 @@ export function toPostDto(
     ...(post.classLevel ? { classLevel: post.classLevel } : {}),
     mediaType: post.mediaType,
     ...(post.mediaUrl ? { mediaUrl: post.mediaUrl } : {}),
+    ...(post.youtubeUrl ? { youtubeUrl: post.youtubeUrl } : {}),
     likes: post.likeCount,
     comments: post.commentCount,
     likedByMe: options.likedByMe ?? false,

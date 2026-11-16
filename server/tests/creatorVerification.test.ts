@@ -3,11 +3,11 @@ import request from 'supertest'
 import { app, registerUser } from './helpers.js'
 
 describe('Creator verification and public profiles', () => {
-  it('verifies a creator with the emailed code and updates their posts', async () => {
+  it('verifies an educator with the emailed code and saves their WhatsApp link', async () => {
     const user = await registerUser({
       username: 'FutureCreator',
       email: 'future.creator@example.com',
-      role: 'student',
+      role: 'creator',
     })
 
     // Create a post before verification so we can check the badge backfill.
@@ -30,21 +30,68 @@ describe('Creator verification and public profiles', () => {
       .send({ code: '000000' })
       .expect(400)
 
-    const confirmed = await request(app)
+    // The code is correct here, but the WhatsApp link is now mandatory.
+    const missingLink = await request(app)
       .post('/api/creators/verify/confirm')
       .set('Authorization', `Bearer ${user.accessToken}`)
       .send({ code: requested.body.devCode })
+      .expect(400)
+    expect(missingLink.body.error.message).toContain('WhatsApp')
+
+    const whatsappUrl = 'https://chat.whatsapp.com/FutureCreatorGroup'
+    const confirmed = await request(app)
+      .post('/api/creators/verify/confirm')
+      .set('Authorization', `Bearer ${user.accessToken}`)
+      .send({ code: requested.body.devCode, whatsappUrl })
       .expect(200)
 
     expect(confirmed.body.user.creatorStatus).toBe('approved')
     expect(confirmed.body.user.role).toBe('creator')
+    expect(confirmed.body.user.whatsappUrl).toBe(whatsappUrl)
     expect(confirmed.body.message).toContain('Welcome to being a creator')
 
     const profile = await request(app).get('/api/users/FutureCreator').expect(200)
     expect(profile.body.user.creatorStatus).toBe('approved')
+    expect(profile.body.user.whatsappUrl).toBe(whatsappUrl)
     expect(profile.body.posts).toHaveLength(1)
     expect(profile.body.posts[0].authorRole).toBe('creator')
     expect(profile.body.posts[0].authorUsername).toBe('FutureCreator')
+  })
+
+  it('does not let Student accounts start educator verification', async () => {
+    const student = await registerUser({
+      username: 'StudentOnly',
+      email: 'student.only@example.com',
+      role: 'student',
+    })
+
+    const response = await request(app)
+      .post('/api/creators/verify/request')
+      .set('Authorization', `Bearer ${student.accessToken}`)
+      .expect(403)
+
+    expect(response.body.error.message).toContain('Student accounts')
+  })
+
+  it('rejects a verification link that is not a WhatsApp group or community', async () => {
+    const user = await registerUser({
+      username: 'BadLinkEducator',
+      email: 'bad.link@example.com',
+      role: 'creator',
+    })
+
+    const requested = await request(app)
+      .post('/api/creators/verify/request')
+      .set('Authorization', `Bearer ${user.accessToken}`)
+      .expect(200)
+
+    const response = await request(app)
+      .post('/api/creators/verify/confirm')
+      .set('Authorization', `Bearer ${user.accessToken}`)
+      .send({ code: requested.body.devCode, whatsappUrl: 'https://example.com/not-whatsapp' })
+      .expect(422)
+
+    expect(response.body.error.code).toBe('VALIDATION_ERROR')
   })
 
   it('lets a user save a bio and gender and exposes them publicly', async () => {

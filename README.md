@@ -17,7 +17,7 @@ MongoDB** API on the back end, keeping the original design, content and behaviou
 - [Installation](#installation)
 - [Environment variables](#environment-variables)
 - [MongoDB setup](#mongodb-setup)
-- [Paystack and the paid video library](#paystack-and-the-paid-video-library)
+- [Paystack, Cloudflare Stream and the paid video library](#paystack-cloudflare-stream-and-the-paid-video-library)
 - [Development commands](#development-commands)
 - [API overview](#api-overview)
 - [Authentication approach](#authentication-approach)
@@ -39,7 +39,7 @@ MongoDB** API on the back end, keeping the original design, content and behaviou
 | **Profile** | Twitter-style profile screen at `/u/:username` with cover, avatar, bio, gender, country/state, creator badge and full post timeline. Editable avatar, bio and profile details, “View profile” in the avatar menu, settings modal (Account, Region & language, Appearance, Privacy), light/dark app theme in Settings only, password strength meter and account deletion. |
 | **Community feed** | For You / Following tabs, creator search, create posts with text, subject and image/video uploads, like/unlike, delete your own posts, desktop and X-style mobile layouts, floating action button on mobile. |
 | **Courses** | Country → University → Campus → Faculty → Department → Level → Course browser with search, add faculty, add course (with PDF upload), in-app PDF viewer and download. |
-| **Paid videos** | Approved creators upload lessons through the app; the API receives the file and PUTs it straight to YouTube as an unlisted video via a one-time resumable session, then the creator can preview it in the app. The creator picks the price — a suggested amount, a custom amount, or Free — then an admin reviews it and publishes the locked card. Students pay once through Paystack and the creator receives 70% via a Paystack subaccount. Lifetime access per video, server-enforced entitlement. |
+| **Paid videos** | Approved creators upload lessons through the app; the file goes straight to **Cloudflare Stream** through a one-time tus session so large videos bypass the API. Stream videos require short-lived signed playback tokens and are locked to Talma's domains, so copied links expire. The creator picks the price — a suggested amount, a custom amount, or Free — then an admin reviews it and publishes the locked card. Students pay once through Paystack and the creator receives 70% via a Paystack subaccount. Lifetime access per video, server-enforced entitlement. Legacy YouTube-backed entries keep working, and YouTube remains a fallback when Cloudflare is not configured. |
 | **Messages & communities** | Inbox with search and read state, *My Communities*, *Explore* with category filters, join/leave, create community. |
 | **Tests** | Pick a faculty → department → answer a 10-question practice test → server-graded score. |
 | **Assignments** | Assignment list with per-student submission state. |
@@ -112,7 +112,7 @@ talma/
     │   ├── data/              # catalogue, communities, tests seed content
     │   └── modules/           # auth, users, posts, courses, communities,
     │                          # messages, assignments, notifications, tests,
-    │                          # uploads, videos, creators, youtube, payments, ai
+    │                          # uploads, videos, creators, cloudflare, youtube, payments, ai
     └── tests/                 # Vitest + Supertest suites
 ```
 
@@ -209,10 +209,16 @@ dashboard is not empty on a fresh install. Re-running the seed never overwrites 
 | `VIDEO_DEFAULT_PRICE_KOBO` | `200000` | Fallback price in kobo (₦2,000) when a creator does not choose one. |
 | `VIDEO_MAX_UPLOAD_BYTES` | `4294967296` | Maximum creator upload size (4 GiB). |
 | `PLATFORM_VIDEO_SHARE_PERCENT` | `30` | Talma's cut of each video sale; creators receive the remainder. |
-| `YOUTUBE_CLIENT_ID` | — | Google OAuth desktop-app client id. Required for creator uploads. |
-| `YOUTUBE_CLIENT_SECRET` | — | Google OAuth client secret. Required for creator uploads. |
-| `YOUTUBE_REFRESH_TOKEN` | — | Refresh token for the Talma channel, minted with `npm run youtube:auth --workspace server`. |
-| `YOUTUBE_CHANNEL_ID` | — | The Talma channel id. Uploads that land on another channel are rejected. Required for uploads. |
+| `CLOUDFLARE_ACCOUNT_ID` | — | Cloudflare account id that owns Stream. Required for new uploads. |
+| `CLOUDFLARE_STREAM_API_TOKEN` | — | API token with **Account → Stream → Edit** permission. |
+| `CLOUDFLARE_STREAM_CUSTOMER_CODE` | — | Customer code from the Stream embed URL (`customer-<CODE>.cloudflarestream.com`). |
+| `CLOUDFLARE_STREAM_ALLOWED_ORIGINS` | `CLIENT_APP_URL` host | Comma-separated domains allowed to embed videos, without a scheme. Local dev needs `localhost:5173`. |
+| `CLOUDFLARE_STREAM_TOKEN_TTL_SECONDS` | `7200` | Signed playback token lifetime (max 24 hours). |
+| `CLOUDFLARE_STREAM_UPLOAD_TTL_SECONDS` | `21600` | One-time direct-upload URL lifetime (max 24 hours). |
+| `YOUTUBE_CLIENT_ID` | — | Legacy YouTube fallback only. Google OAuth desktop-app client id. |
+| `YOUTUBE_CLIENT_SECRET` | — | Legacy YouTube fallback only. Google OAuth client secret. |
+| `YOUTUBE_REFRESH_TOKEN` | — | Legacy YouTube fallback only. Minted with `npm run youtube:auth --workspace server`. |
+| `YOUTUBE_CHANNEL_ID` | — | Legacy YouTube fallback only. Uploads that land on another channel are rejected. |
 | `YOUTUBE_CATEGORY_ID` | `27` | YouTube category id (27 = Education). |
 | `UPLOAD_DIR` | `uploads` | Where uploaded media is written (relative to `server/`). |
 | `UPLOAD_ALLOWED_TYPES` | image/video/pdf list | Comma-separated allow-list of upload MIME types. |
@@ -313,11 +319,12 @@ is unreachable.
 
 ---
 
-## Paystack, YouTube and the paid video library
+## Paystack, Cloudflare Stream and the paid video library
 
-Talma uses a **creator upload → admin review → Paystack sale** flow. Creators never paste links; the
-browser uploads the file straight to the Talma YouTube channel through a one-time resumable session,
-so large files do not pass through the API.
+Talma uses a **creator upload → admin review → Paystack sale** flow. New creator uploads go
+straight to **Cloudflare Stream** through a one-time tus session, so large files do not pass through
+the API. Playback requires a short-lived signed token and is restricted to Talma's domains, so a
+copied lesson link stops working when the token expires.
 
 ### 1. Paystack
 
@@ -334,7 +341,36 @@ so large files do not pass through the API.
    creator price follows the same split.
 4. Live payments and creator payouts require a Paystack business account with completed KYC.
 
-### 2. YouTube channel and OAuth
+### 2. Cloudflare Stream
+
+1. In the [Cloudflare dashboard](https://dash.cloudflare.com/), open **Stream** and enable it for
+   the account.
+2. Copy the **Account ID** from the dashboard URL into `CLOUDFLARE_ACCOUNT_ID`.
+3. Create an API token with **Account → Stream → Edit** permission and put it in
+   `CLOUDFLARE_STREAM_API_TOKEN`. The token stays on the server; the browser only receives one-time
+   upload URLs.
+4. Copy the **customer code** from a Stream player embed (`customer-<CODE>.cloudflarestream.com`)
+   into `CLOUDFLARE_STREAM_CUSTOMER_CODE`.
+5. Set `CLOUDFLARE_STREAM_ALLOWED_ORIGINS` to the domains that may embed lessons, without a scheme:
+   `talma.com,www.talma.com`. Local development normally needs `localhost:5173`. When empty, the
+   host from `CLIENT_APP_URL` is used.
+6. Restart the API. New uploads now use Cloudflare Stream; existing YouTube-backed entries keep
+   working, and YouTube is used as a fallback only when Cloudflare is not configured.
+
+Stream videos are created with `requireSignedURLs`. Playback tokens default to **2 hours** and can
+be at most 24 hours. The API caches tokens server-side because Cloudflare rate-limits the token
+endpoint, and only returns a token after checking the viewer's entitlement. `allowedOrigins` blocks
+embedding on other domains. Playback tokens are deliberately **not** included in catalogue
+responses; the client calls `GET /api/videos/:id/watch` when the student presses Watch.
+
+Existing catalogue videos that live on YouTube **cannot be migrated automatically**. Re-upload them
+through **Videos → Upload video** to move them onto Stream, then remove the old YouTube entries.
+
+### 3. YouTube fallback (legacy)
+
+New uploads prefer Cloudflare Stream whenever the three Cloudflare credentials are present. The
+YouTube flow below remains for existing entries and deployments that have not moved to Stream.
+Note that an unlisted YouTube URL is still a permanent, shareable link.
 
 1. Sign in to Google with the account that owns the Talma YouTube channel. Create the channel if it
    does not exist, and **phone-verify** it — YouTube requires verification for videos longer than 15
@@ -358,7 +394,7 @@ so large files do not pass through the API.
    The refresh token is scoped to `https://www.googleapis.com/auth/youtube` so Talma can initiate
    uploads, switch privacy and delete rejected videos.
 
-### 3. Running the flow
+### 4. Running the flow
 
 1. **Apply as a creator** — any signed-in user can open **Multimedia → Become a creator** and submit a
    display name, bio, bank and account number. Paystack verifies the account name immediately.
@@ -367,18 +403,19 @@ so large files do not pass through the API.
 3. **Upload** — the creator opens **Videos → Upload video**, chooses an MP4/WebM/MOV up to 4 GB and
    one hour, selects the curriculum **Subject** (for example Mathematics) and **Class level** (Primary
    1 through University 600 Level), and sets the price: a suggested amount (₦500, ₦1,000, ₦2,000 or
-   ₦5,000), a custom amount, or **Free**. The browser sends the file to the Talma API (same origin
-   through the Vite proxy), which PUTs it to YouTube in 8 MiB chunks with progress and automatic
-   resume. The YouTube video is **unlisted** (not searchable or listed on the
-   channel), so the creator can preview it in **My videos** while it waits for review; other users
-   cannot see it in Talma yet.
-4. **Review** — the admin sees the upload in **Review**, opens it in YouTube Studio, and either
-   approves it (publishes the card at the creator's price, which the admin may adjust) or rejects it
-   (deletes the YouTube copy and shows the creator the reason).
+   ₦5,000), a custom amount, or **Free**. The browser PATCHes the file directly to Cloudflare in
+   50 MiB tus chunks with progress and automatic resume. The API creates the Stream video with signed
+   playback and queues it for review once encoding finishes. The creator can preview it in **My
+   videos**; other users cannot see it in Talma yet.
+4. **Review** — the admin sees the upload in **Review**, previews it from the **Library** tab (or
+   opens the Cloudflare dashboard), and either approves it (publishes the card at the creator's
+   price, which the admin may adjust) or rejects it (deletes the Stream copy and shows the creator
+   the reason).
 5. **Buy** — a student taps **Unlock**. The API creates a Paystack transaction with the server-side
    price and the creator's subaccount, then redirects to hosted checkout. Paystack calls the webhook
    and sends the buyer back to `/mycamp`; Talma verifies the transaction and unlocks the video. The
-   **Watch** button opens the unlisted YouTube URL in a new tab.
+   **Watch** button asks the API for a fresh signed token and plays the lesson in Talma's private
+   player.
 
 A **legacy admin flow** remains under **Videos → Add YouTube link** for already-published content.
 It requires the same subject and class level and does not pay a creator. Existing catalogue entries
@@ -388,9 +425,10 @@ The amount is always read from the database on the server — the browser cannot
 Access is granted once per user per video, and a payment retry cannot grant it twice. Pending
 checkouts are reused for 30 minutes so a double-click cannot create two payable references.
 
-> **Important:** an unlisted YouTube link is not a true DRM lock. Anyone who receives the URL can
-> watch it. If you need playback that cannot be shared, use a private video host with signed URLs
-> instead of YouTube (see [Known limitations](#known-limitations)).
+> **Important:** Cloudflare Stream links are signed and short-lived, and the embed is restricted to
+> Talma's domains. This stops a copied link from working indefinitely or being embedded elsewhere,
+> but no video platform can prevent screen recording. Legacy YouTube-backed entries remain
+> shareable until they are re-uploaded to Stream (see [Known limitations](#known-limitations)).
 
 ---
 
@@ -455,7 +493,7 @@ All endpoints are prefixed with `/api`. Protected routes expect `Authorization: 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
 | `GET` | `/` | optional | Feed. `?feed=foryou\|following&search=&page=&limit=`. `following` uses real follow relationships. |
-| `POST` | `/` | Bearer | Create a post (`content`, optional `subject`, `mediaType`, `mediaUrl`). |
+| `POST` | `/` | Bearer | Create a post (`content`, optional `subject`, `classLevel`, `mediaType`, `mediaUrl`, `youtubeUrl`). |
 | `POST` | `/:id/like` | Bearer | Like a post. |
 | `DELETE` | `/:id/like` | Bearer | Remove a like. |
 | `DELETE` | `/:id` | Bearer | Delete a post (author or admin only). |
@@ -514,26 +552,27 @@ rejected. Profile photos accept images only, up to 8MB. Course outlines accept P
 
 ### Videos — `/api/videos`
 
-Signed-in students browse the library and buy one video at a time. Creator uploads go straight to
-YouTube; Talma stores only the metadata and entitlement. The Videos section accepts **video files
-only** — feed post media is unchanged and still accepts photos and videos.
+Signed-in students browse the library and buy one video at a time. New creator uploads go directly to
+Cloudflare Stream through a one-time tus session; legacy entries may still point at YouTube. Talma
+stores only metadata and entitlement. The Videos section accepts **video files only** — feed post
+media is unchanged and still accepts photos and videos.
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| `GET` | `/` | optional | Published catalogue with `locked` / `purchased` state. Administrators also receive every status. |
-| `GET` | `/mine` | Bearer | The caller's own uploads in every state (creators/admins). |
-| `GET` | `/review` | Admin | Uploads that finished on YouTube and are waiting for approval. |
+| `GET` | `/` | optional | Published catalogue with `locked` / `purchased` state, `provider` and `canWatch`. Administrators also receive every status. Cloudflare playback URLs are never included. |
+| `GET` | `/mine` | Bearer | The caller's own uploads in every state (creators/admins). Processing Stream uploads are refreshed from Cloudflare. |
+| `GET` | `/review` | Admin | Uploads that finished encoding and are waiting for approval. |
 | `GET` | `/:id` | optional | One video. Pending uploads are visible only to their creator and admins. |
-| `GET` | `/:id/thumbnail` | – | Proxied YouTube thumbnail; a placeholder is served for unreviewed uploads. |
-| `GET` | `/:id/watch` | Bearer | Returns the YouTube URL only when the video is free, purchased, owned or viewed by an admin. The creator can preview their own upload before approval. Otherwise `402 PAYMENT_REQUIRED`. |
+| `GET` | `/:id/thumbnail` | – | Proxied provider thumbnail; Cloudflare tokens stay server-side. A placeholder is served for unreviewed uploads. |
+| `GET` | `/:id/watch` | Bearer | Mints a short-lived signed Cloudflare playback URL (or returns the legacy YouTube URL) when the video is free, purchased, owned or viewed by an admin. The creator can preview their own upload before approval. Otherwise `402 PAYMENT_REQUIRED`. |
 | `POST` | `/:id/checkout` | Bearer | Creates a pending purchase and returns Paystack's `authorizationUrl`. The amount and creator split are read from the database. |
 | `POST` | `/purchases/verify` | Bearer | Reconciles a payment after Paystack redirects the buyer back. Idempotent. |
-| `POST` | `/uploads` | Creator | Reserve a YouTube resumable upload session (`title`, `description`, `subject`, `classLevel`, `priceNaira`, `fileName`, `mimeType`, `fileSizeBytes`, `madeForKids`). `priceNaira` is 0 for a free lesson or at least 100 for a paid one. Returns a one-time `uploadUrl` for the browser. |
-| `POST` | `/:id/upload-complete` | Creator | Verify the new YouTube id, duration and channel, then queue the video for review. |
-| `POST` | `/:id/approve` | Admin | Publish the reviewed card at the creator's price (optional `priceNaira` overrides it). |
-| `POST` | `/:id/reject` | Admin | Delete the YouTube copy and mark the upload rejected with a reason. |
+| `POST` | `/uploads` | Creator | Reserve a direct upload (`title`, `description`, `subject`, `classLevel`, `priceNaira`, `fileName`, `mimeType`, `fileSizeBytes`, `madeForKids`). `priceNaira` is 0 for a free lesson or at least 100 for a paid one. Returns `provider`, `uploadMethod` (`tus` or `youtube`), a one-time `uploadUrl` and, for Cloudflare, `streamUid`. |
+| `POST` | `/:id/upload-complete` | Creator | Body is `{ "streamUid": "…" }` for Cloudflare or `{ "youtubeVideoId": "…" }` for the legacy flow. Verifies processing, duration and security, then queues the video for review. A Cloudflare upload that is still encoding returns `processing`. |
+| `POST` | `/:id/approve` | Admin | Publish the reviewed card at the creator's price (optional `priceNaira` overrides it). Re-asserts signed playback for Stream videos. |
+| `POST` | `/:id/reject` | Admin | Delete the Cloudflare or YouTube copy and mark the upload rejected with a reason. |
 | `POST` | `/` | Admin | Legacy: add an existing video by pasting a YouTube link. |
-| `PATCH` | `/:id` | Admin | Update metadata, price or visibility; published creator videos also update YouTube. |
+| `PATCH` | `/:id` | Admin | Update metadata, price or visibility; published titles/descriptions also sync to the provider. YouTube links cannot replace a Cloudflare video. |
 | `DELETE` | `/:id` | Admin/owner | Administrators delete any video and its purchases; creators may delete their own unsold work. |
 
 ### Paystack webhook
@@ -608,7 +647,12 @@ covers:
   guard, resumable session initialization, YouTube channel verification, the one-hour limit,
   creator-chosen prices (suggested, custom and free), creator preview before approval, the
   pending-review state being hidden from students, admin approve/reject, creator revenue-split
-  checkout and rejection deleting the YouTube copy.
+  checkout and rejection deleting the provider copy;
+* Cloudflare Stream: tus direct-upload provisioning with signed-URL metadata and allowed origins,
+  encoding/processing refresh, signed playback-token issuance and server-side token caching,
+  provider-aware approval and rejection, and the guarantee that catalogue responses never leak a
+  playback URL. Tests run with Cloudflare unset elsewhere, so the legacy YouTube fallback stays
+  covered too.
 
 The frontend suite uses Vitest and React Testing Library and covers the Discover hub filter and the
 hub search/empty-state behaviour.
@@ -650,7 +694,8 @@ npm run build
 | **OpenAI-compatible AI** | Optional | Powers the signed-in LINT assistant through the server proxy. Without a server key it falls back to the free Pollinations text model. Pictures need a vision-capable model — set `OPENAI_API_KEY`, `OPENAI_BASE_URL` and `OPENAI_MODEL` in `server/.env` (for example Gemini 2.5 Flash or Llama 4 Scout). |
 | **OpenStreetMap / Nominatim** | Optional | Used by the *Know Your School* place search and by the Leaflet map tiles. |
 | **Paystack** | Optional | Paid video library and creator splits. Set `PAYSTACK_SECRET_KEY`, `PAYSTACK_CURRENCY` and a public HTTPS webhook URL. Buyers pay on Paystack's hosted checkout and return to `/mycamp`; access is granted by the signed webhook. Creator approvals create Paystack subaccounts using the bank details in the application. |
-| **YouTube Data API v3** | Optional | Approved creator uploads. Set the OAuth client id/secret, `YOUTUBE_REFRESH_TOKEN` and `YOUTUBE_CHANNEL_ID`. The API creates resumable sessions; the browser uploads directly to Google as unlisted so the creator can preview it. Review happens in YouTube Studio before the card is published in Talma. |
+| **Cloudflare Stream** | Optional | Private paid video hosting. Set `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_STREAM_API_TOKEN`, `CLOUDFLARE_STREAM_CUSTOMER_CODE` and the allowed origins. The browser uploads directly with tus; playback uses short-lived signed tokens locked to Talma's domains. |
+| **YouTube Data API v3** | Optional | Legacy fallback for existing catalogue entries and deployments without Cloudflare. Set the OAuth client id/secret, `YOUTUBE_REFRESH_TOKEN` and `YOUTUBE_CHANNEL_ID`. Unlisted YouTube links are permanent, so new paid lessons should use Stream. |
 | **Wikimedia Commons** | Optional | The landing page hotlinks campus photographs from Wikimedia Commons. |
 | **Email delivery** | Optional | Resend is recommended for production; SMTP is supported. Development falls back to an Ethereal preview inbox when no credentials are set. Configure `RESEND_API_KEY`/`MAIL_FROM` or SMTP before real users need verification or reset emails. |
 | **ArcGIS imagery** | Optional | Satellite tiles for the campus map. |
@@ -659,27 +704,26 @@ npm run build
 
 ## Known limitations
 
-* **Paid videos live on YouTube as unlisted uploads.** Unlisted videos are hidden from the channel
-  page, search and recommendations, but anyone who obtains the URL can still watch them — YouTube
-  offers no way to restrict playback to referrals from a specific app. Talma withholds the URL until
-  the student pays, but it cannot stop a paying student from sharing the link. True playback locking
-  requires a video host with signed URLs (Bunny Stream, Cloudflare Stream, Mux) instead of YouTube.
-  Selling access to YouTube-hosted videos is also not an officially supported YouTube paywall, and
-  YouTube's terms describe the service as personal, non-commercial use; check the current terms
-  before charging at scale. The channel owner bears the risk of termination or copyright strikes for
-  creator uploads.
-* **Talma does not store or transcode video files.** The creator's app uploads through a resumable
-  session the API created; the API forwards the file bytes to YouTube, so the large files never pass
-  through the Talma API itself. A YouTube channel must be phone-verified to upload videos longer than
-  15 minutes, and the default YouTube quota allows roughly 100 uploads per day. The existing 25 MB uploader is for feed images,
-  short feed videos and course PDFs only.
+* **Cloudflare Stream protects links, not the screen.** Playback requires a short-lived signed
+  token (two hours by default) and is restricted to Talma's allowed origins, so a copied URL stops
+  working quickly and cannot be embedded on another site. It cannot prevent screen recording, and a
+  student with access can view the lesson while their token is valid. Legacy YouTube-backed entries
+  remain permanent, shareable links until they are re-uploaded to Stream. YouTube is also not an
+  officially supported paywall; check its current terms before selling YouTube-hosted videos at
+  scale.
+* **Talma does not store or transcode video files.** New creator uploads use tus directly to
+  Cloudflare Stream in 50 MiB chunks and resume after a dropped connection, so the bytes never pass
+  through the Talma API. The legacy YouTube fallback still forwards the file through the API. A
+  Cloudflare Stream subscription is usage-billed by minutes stored and delivered. The existing 25 MB
+  uploader is for feed images, short feed videos and course PDFs only.
 * **Creator payouts are only as good as the bank details and Paystack KYC.** Talma creates a
   subaccount with `percentage_charge` set to the platform's cut and asks Paystack to settle the
   creator's share directly. Refunds, chargebacks and tax reporting are not automated; reconcile them
   in the Paystack dashboard. The platform bears Paystack's processing fee (`bearer: account`).
-* **YouTube OAuth in *Testing* mode expires after 7 days.** Publish the OAuth consent screen for a
-  long-lived refresh token, and re-run `npm run youtube:auth` if the token is revoked. The
-  `YOUTUBE_CHANNEL_ID` guard prevents a misconfigured token from publishing to the wrong channel.
+* **YouTube OAuth in *Testing* mode expires after 7 days.** This only affects the legacy fallback.
+  Publish the OAuth consent screen for a long-lived refresh token, and re-run
+  `npm run youtube:auth` if the token is revoked. The `YOUTUBE_CHANNEL_ID` guard prevents a
+  misconfigured token from publishing to the wrong channel.
 * **Paystack** must be configured for purchases. The webhook needs a public HTTPS URL, and live
   payments require a Paystack business account and completed KYC. Paystack's processing fee is
   deducted from the platform's share, not the creator's.

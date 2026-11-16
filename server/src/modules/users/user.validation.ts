@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { usernameSchema } from '../../common/validation/schemas.js'
+import { whatsappGroupUrlSchema } from '../../common/validation/whatsapp.js'
 
 export const updateProfileSchema = z
   .object({
@@ -10,6 +11,7 @@ export const updateProfileSchema = z
     timezone: z.string().trim().min(1).max(80).optional(),
     bio: z.string().trim().max(500, 'Your bio must be at most 500 characters').optional(),
     avatarUrl: z.union([z.string().trim().url().max(500), z.literal('')]).optional(),
+    whatsappUrl: z.union([whatsappGroupUrlSchema, z.literal('')]).optional(),
     gender: z.enum(['male', 'female']).optional(),
     privacyPublic: z.boolean().optional(),
     emailNotifications: z.boolean().optional(),
@@ -19,12 +21,7 @@ export const updateProfileSchema = z
   })
 
 export const usernameParamSchema = z.object({
-  username: z
-    .string()
-    .trim()
-    .min(3)
-    .max(32)
-    .regex(/^[a-zA-Z0-9_]+$/, 'Invalid username'),
+  username: usernameSchema,
 })
 
 export const searchProfilesSchema = z.object({

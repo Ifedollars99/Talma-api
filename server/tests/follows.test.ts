@@ -11,7 +11,10 @@ async function verifyCreator(accessToken: string): Promise<void> {
   await request(app)
     .post('/api/creators/verify/confirm')
     .set('Authorization', `Bearer ${accessToken}`)
-    .send({ code: verification.body.devCode })
+    .send({
+      code: verification.body.devCode,
+      whatsappUrl: 'https://chat.whatsapp.com/SearchCreatorGroup',
+    })
     .expect(200)
 }
 

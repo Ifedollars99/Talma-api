@@ -22,6 +22,8 @@ export const createPostSchema = z
     classLevel: classLevelField.optional(),
     mediaType: mediaTypeSchema.default('none'),
     mediaUrl: z.string().trim().max(500).optional(),
+    /** Optional YouTube link so video posts can play on YouTube. */
+    youtubeUrl: z.string().trim().url('Enter a valid YouTube link').max(500).optional(),
   })
   .superRefine((value, ctx) => {
     // Video posts are teaching material, so the catalogue metadata is required.

@@ -31,6 +31,75 @@ describe('Profile and authorisation', () => {
     )
   })
 
+  it('accepts a full name with a title and finds the profile by name', async () => {
+    const user = await registerUser({ username: 'Name User' })
+
+    const updated = await request(app)
+      .patch('/api/users/me')
+      .set('Authorization', `Bearer ${user.accessToken}`)
+      .send({ username: '  Dr.   Aisha   Bello  ' })
+      .expect(200)
+
+    expect(updated.body.user.username).toBe('Dr. Aisha Bello')
+
+    const profile = await request(app)
+      .get(`/api/users/${encodeURIComponent('Dr. Aisha Bello')}`)
+      .expect(200)
+    expect(profile.body.user.username).toBe('Dr. Aisha Bello')
+  })
+
+  it('normalises and exposes a WhatsApp group link', async () => {
+    const user = await registerUser({ username: 'WhatsAppEducator' })
+
+    const updated = await request(app)
+      .patch('/api/users/me')
+      .set('Authorization', `Bearer ${user.accessToken}`)
+      .send({ whatsappUrl: 'chat.whatsapp.com/WhatsAppEducatorGroup' })
+      .expect(200)
+
+    expect(updated.body.user.whatsappUrl).toBe(
+      'https://chat.whatsapp.com/WhatsAppEducatorGroup',
+    )
+
+    const profile = await request(app)
+      .get('/api/users/WhatsAppEducator')
+      .expect(200)
+    expect(profile.body.user.whatsappUrl).toBe(
+      'https://chat.whatsapp.com/WhatsAppEducatorGroup',
+    )
+  })
+
+  it('rejects a link that is not a WhatsApp group or community', async () => {
+    const user = await registerUser({ username: 'BadWhatsApp' })
+
+    const response = await request(app)
+      .patch('/api/users/me')
+      .set('Authorization', `Bearer ${user.accessToken}`)
+      .send({ whatsappUrl: 'https://example.com/not-a-whatsapp-group' })
+      .expect(422)
+
+    expect(response.body.error.code).toBe('VALIDATION_ERROR')
+    expect(JSON.stringify(response.body.error.details)).toContain('WhatsApp')
+  })
+
+  it('lets an educator clear their WhatsApp link', async () => {
+    const user = await registerUser({ username: 'ClearedWhatsApp' })
+
+    await request(app)
+      .patch('/api/users/me')
+      .set('Authorization', `Bearer ${user.accessToken}`)
+      .send({ whatsappUrl: 'https://chat.whatsapp.com/ClearedGroup' })
+      .expect(200)
+
+    const cleared = await request(app)
+      .patch('/api/users/me')
+      .set('Authorization', `Bearer ${user.accessToken}`)
+      .send({ whatsappUrl: '' })
+      .expect(200)
+
+    expect(cleared.body.user.whatsappUrl).toBe('')
+  })
+
   it('shows a private profile only to its owner', async () => {
     const user = await registerUser({ username: 'PrivateProfile' })
 

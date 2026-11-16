@@ -3,12 +3,26 @@ import mongoose from 'mongoose'
 import { env } from '../../config/env.js'
 import { logger } from '../../config/logger.js'
 import { AppError } from '../../common/errors/AppError.js'
+import { isWhatsAppGroupUrl } from '../../common/validation/whatsapp.js'
 import { UserModel } from '../users/user.model.js'
 import {
   initializeTransaction,
   verifyTransaction,
   type VerifiedTransaction,
 } from '../payments/paystack.client.js'
+import {
+  createDirectUpload,
+  createStreamToken,
+  deleteStreamVideo,
+  getStreamVideo,
+  isCloudflareStreamConfigured,
+  secureStreamVideo,
+  streamDashboardUrl,
+  streamEmbedUrl,
+  streamThumbnailUrl,
+  updateStreamVideo,
+  type StreamStatus,
+} from '../cloudflare/stream.client.js'
 import {
   deleteVideo as deleteYouTubeVideo,
   getVideoInfo,
@@ -18,7 +32,12 @@ import {
   updateVideoPrivacy,
 } from '../youtube/youtube.client.js'
 import { getApprovedCreator } from '../creators/creator.service.js'
-import { VideoModel, type VideoDocument, type VideoStatus } from './video.model.js'
+import {
+  VideoModel,
+  type VideoDocument,
+  type VideoProvider,
+  type VideoStatus,
+} from './video.model.js'
 import {
   VideoPurchaseModel,
   type PaymentStatus,
@@ -41,6 +60,10 @@ export interface VideoDto {
   description: string
   subject: string
   classLevel: string
+  /** Position of this lesson in a multi-part series, e.g. 2 in "2 of 4". */
+  periodNumber?: number
+  /** Total lessons in the series, e.g. 4 in "2 of 4". */
+  periodTotal?: number
   thumbnailUrl: string
   durationSeconds: number
   priceKobo: number
@@ -49,13 +72,17 @@ export interface VideoDto {
   locked: boolean
   published: boolean
   status: VideoStatus
+  provider: VideoProvider
+  /** True when this viewer may start playback right now. */
+  canWatch: boolean
+  streamStatus?: StreamStatus
   createdAt: string
   canManage: boolean
   canReview: boolean
   creator?: { id: string; name: string }
   rejectionReason?: string
   uploadedAt?: string
-  /** Only present once the viewer owns the video (or may manage it). */
+  /** Legacy YouTube videos only; Cloudflare playback URLs are minted on demand. */
   watchUrl?: string
   /** Only present for administrators, who need it to review/edit the entry. */
   youtubeUrl?: string
@@ -87,8 +114,19 @@ export interface CheckoutResult {
 
 export interface StartUploadResult {
   video: VideoDto
+  provider: VideoProvider
+  /** `tus` for Cloudflare direct uploads; `youtube` for the legacy proxy flow. */
+  uploadMethod: 'tus' | 'youtube'
   uploadUrl: string
   uploadExpiresAt: string
+  /** Present for Cloudflare direct uploads. */
+  streamUid?: string
+}
+
+export interface WatchResult {
+  watchUrl: string
+  /** Present for Cloudflare Stream links; YouTube links do not expire. */
+  expiresAt?: string
 }
 
 const YOUTUBE_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/
@@ -140,16 +178,27 @@ export function parseYouTubeVideoId(input: string): string | null {
   return null
 }
 
-function watchUrlFor(youtubeVideoId: string): string {
+function youtubeWatchUrlFor(youtubeVideoId: string): string {
   return `https://www.youtube.com/watch?v=${youtubeVideoId}`
 }
 
-function studioUrlFor(youtubeVideoId: string): string {
+function youtubeStudioUrlFor(youtubeVideoId: string): string {
   return `https://studio.youtube.com/video/${youtubeVideoId}/edit`
 }
 
 function thumbnailUrlFor(id: string): string {
   return `${env.PUBLIC_API_URL.replace(/\/$/, '')}/api/videos/${id}/thumbnail`
+}
+
+function providerOf(video: VideoDocument): VideoProvider {
+  return video.provider === 'cloudflare' ? 'cloudflare' : 'youtube'
+}
+
+function hasPlayableSource(video: VideoDocument): boolean {
+  if (providerOf(video) === 'cloudflare') {
+    return Boolean(video.streamUid) && video.streamStatus === 'ready'
+  }
+  return Boolean(video.youtubeVideoId)
 }
 
 function statusOf(video: VideoDocument): VideoStatus {
@@ -162,6 +211,118 @@ function isCreatorOf(video: VideoDocument, viewer: VideoViewer): boolean {
   )
 }
 
+/**
+ * Cloudflare processes uploads asynchronously. Refresh entries that are still
+ * uploading/processing so the creator sees them move into the review queue
+ * without needing a webhook. Failures are logged, never surfaced to the list.
+ */
+async function refreshProcessingVideos(
+  videos: Array<VideoDocument & { _id: unknown }>,
+): Promise<void> {
+  if (!isCloudflareStreamConfigured()) return
+
+  const pending = videos.filter(
+    (video) =>
+      providerOf(video) === 'cloudflare' &&
+      Boolean(video.streamUid) &&
+      (video.status === 'uploading' || video.status === 'processing'),
+  )
+  if (pending.length === 0) return
+
+  await Promise.allSettled(
+    pending.map(async (video) => {
+      const streamUid = video.streamUid as string
+      try {
+        const info = await getStreamVideo(streamUid)
+        if (!info) {
+          video.streamStatus = 'error'
+          video.status = 'failed'
+          await VideoModel.updateOne(
+            { _id: video._id },
+            { $set: { streamStatus: 'error', status: 'failed' } },
+          )
+          return
+        }
+
+        if (info.status === 'error') {
+          video.streamStatus = 'error'
+          video.status = 'failed'
+          await VideoModel.updateOne(
+            { _id: video._id },
+            { $set: { streamStatus: 'error', status: 'failed' } },
+          )
+          return
+        }
+
+        if (info.status === 'ready') {
+          // Make sure an upload that finished after the browser closed is still
+          // signed and domain-locked before it can enter the review queue.
+          try {
+            await secureStreamVideo(streamUid)
+          } catch (error) {
+            logger.warn(
+              { err: error, videoId: String(video._id), streamUid },
+              'Could not secure a finished Cloudflare Stream upload; leaving it in processing',
+            )
+            if (!info.requireSignedURLs) return
+          }
+
+          const uploadedAt = video.uploadedAt ?? new Date()
+          video.streamStatus = 'ready'
+          video.status = 'pending_review'
+          video.durationSeconds = info.durationSeconds
+          video.uploadedAt = uploadedAt
+          await VideoModel.updateOne(
+            { _id: video._id },
+            {
+              $set: {
+                streamStatus: 'ready',
+                status: 'pending_review',
+                durationSeconds: info.durationSeconds,
+                uploadedAt,
+              },
+            },
+          )
+          return
+        }
+
+        // Still queued or encoding.
+        video.streamStatus = info.status
+        video.status = 'processing'
+        await VideoModel.updateOne(
+          { _id: video._id },
+          { $set: { streamStatus: info.status, status: 'processing' } },
+        )
+      } catch (error) {
+        // A transient Cloudflare outage must not break the catalogue.
+        logger.warn(
+          { err: error, videoId: String(video._id), streamUid },
+          'Could not refresh a Cloudflare Stream upload status',
+        )
+      }
+    }),
+  )
+}
+
+/** Builds a playable target. Cloudflare links are signed and short-lived. */
+async function watchTargetFor(video: VideoDocument): Promise<WatchResult> {
+  if (providerOf(video) === 'cloudflare') {
+    if (!video.streamUid) {
+      throw AppError.conflict('This video has not finished uploading yet.')
+    }
+    const { token, expiresAt } = await createStreamToken(video.streamUid)
+    return {
+      watchUrl: streamEmbedUrl(token),
+      expiresAt: expiresAt.toISOString(),
+    }
+  }
+
+  if (!video.youtubeVideoId) {
+    throw AppError.conflict('This video has not finished uploading yet.')
+  }
+  return { watchUrl: youtubeWatchUrlFor(video.youtubeVideoId) }
+}
+
 function toVideoDto(
   video: VideoDocument & { _id: unknown },
   options: { purchased: boolean; viewer: VideoViewer },
@@ -169,13 +330,16 @@ function toVideoDto(
   const isAdmin = options.viewer.role === 'admin'
   const isCreator = isCreatorOf(video, options.viewer)
   const canManage = isAdmin || isCreator
+  const provider = providerOf(video)
   // Free published videos are immediately watchable; managers can preview
   // their own work. Nothing unpublished is watchable through the buyer flow.
   const purchased = options.purchased || (video.priceKobo === 0 && video.published)
-  // Creators can preview their own upload as soon as YouTube has it, even
-  // while it is unlisted and waiting for review.
-  const canWatch = purchased || isAdmin || (isCreator && Boolean(video.youtubeVideoId))
+  const canWatch = hasPlayableSource(video) && (purchased || isAdmin || isCreator)
   const status = statusOf(video)
+  const studioUrl =
+    isAdmin && provider === 'cloudflare' && video.streamUid
+      ? streamDashboardUrl(video.streamUid)
+      : null
 
   return {
     id: String(video._id),
@@ -183,6 +347,8 @@ function toVideoDto(
     description: video.description,
     subject: video.subject ?? '',
     classLevel: video.classLevel ?? '',
+    ...(video.periodNumber !== undefined ? { periodNumber: video.periodNumber } : {}),
+    ...(video.periodTotal !== undefined ? { periodTotal: video.periodTotal } : {}),
     thumbnailUrl: thumbnailUrlFor(String(video._id)),
     durationSeconds: video.durationSeconds,
     priceKobo: video.priceKobo,
@@ -193,6 +359,9 @@ function toVideoDto(
     locked: video.published && !purchased && !canWatch,
     published: video.published,
     status,
+    provider,
+    canWatch,
+    ...(video.streamStatus ? { streamStatus: video.streamStatus } : {}),
     createdAt: video.createdAt.toISOString(),
     canManage,
     canReview: isAdmin && status === 'pending_review',
@@ -206,15 +375,18 @@ function toVideoDto(
       : {}),
     ...(video.rejectionReason ? { rejectionReason: video.rejectionReason } : {}),
     ...(video.uploadedAt ? { uploadedAt: video.uploadedAt.toISOString() } : {}),
-    ...(canWatch && video.youtubeVideoId
-      ? { watchUrl: watchUrlFor(video.youtubeVideoId) }
+    // Cloudflare playback links are minted on demand by /:id/watch; putting one
+    // in the catalogue would make it easy to copy and share.
+    ...(canWatch && provider === 'youtube' && video.youtubeVideoId
+      ? { watchUrl: youtubeWatchUrlFor(video.youtubeVideoId) }
       : {}),
-    ...(isAdmin && video.youtubeVideoId
+    ...(isAdmin && provider === 'youtube' && video.youtubeVideoId
       ? {
-          youtubeUrl: watchUrlFor(video.youtubeVideoId),
-          studioUrl: studioUrlFor(video.youtubeVideoId),
+          youtubeUrl: youtubeWatchUrlFor(video.youtubeVideoId),
+          studioUrl: youtubeStudioUrlFor(video.youtubeVideoId),
         }
       : {}),
+    ...(studioUrl ? { studioUrl } : {}),
   }
 }
 
@@ -260,6 +432,7 @@ function assertCanManage(video: VideoDocument, viewer: VideoViewer): void {
 export async function listVideos(viewer: VideoViewer): Promise<VideoDto[]> {
   const filter = viewer.role === 'admin' ? {} : { published: true }
   const videos = await VideoModel.find(filter).sort({ createdAt: -1 }).lean()
+  await refreshProcessingVideos(videos)
   const paid = viewer.id ? await paidVideoIds(viewer.id) : new Set<string>()
 
   return videos.map((video) =>
@@ -272,6 +445,7 @@ export async function listMyVideos(viewer: VideoViewer): Promise<VideoDto[]> {
   if (!viewer.id) throw AppError.unauthorized('Authentication required')
   const filter = viewer.role === 'admin' ? {} : { creator: viewer.id }
   const videos = await VideoModel.find(filter).sort({ createdAt: -1 }).lean()
+  await refreshProcessingVideos(videos)
   const paid = await paidVideoIds(viewer.id)
 
   return videos.map((video) =>
@@ -279,11 +453,19 @@ export async function listMyVideos(viewer: VideoViewer): Promise<VideoDto[]> {
   )
 }
 
-/** Admin review queue: uploads that finished on YouTube but are not published. */
+/** Admin review queue: uploads that finished encoding but are not published. */
 export async function listReviewQueue(): Promise<VideoDto[]> {
-  const videos = await VideoModel.find({ status: 'pending_review' })
+  // Include Cloudflare entries that are still processing so this endpoint can
+  // promote them as soon as encoding finishes, even if the admin only opens the
+  // Review tab.
+  const candidates = await VideoModel.find({
+    $or: [{ status: 'pending_review' }, { status: 'processing', provider: 'cloudflare' }],
+  })
     .sort({ createdAt: 1 })
     .lean()
+  await refreshProcessingVideos(candidates)
+  const videos = candidates.filter((video) => video.status === 'pending_review')
+
   return videos.map((video) =>
     toVideoDto(video, { purchased: false, viewer: { role: 'admin' } }),
   )
@@ -297,15 +479,16 @@ export async function getVideo(id: string, viewer: VideoViewer): Promise<VideoDt
     video.published || viewer.role === 'admin' || isCreatorOf(video, viewer)
   if (!canView) throw AppError.notFound('Video not found')
 
+  await refreshProcessingVideos([video])
   const purchased = viewer.id ? await hasPaidAccess(viewer.id, id) : false
   return toVideoDto(video, { purchased, viewer })
 }
 
-/** Returns the YouTube URL only when the viewer has access. */
+/** Returns a playable URL only when the viewer has access. */
 export async function getWatchUrl(
   id: string,
   viewer: VideoViewer,
-): Promise<{ watchUrl: string }> {
+): Promise<WatchResult> {
   const video = await VideoModel.findById(id).lean()
   if (!video) throw AppError.notFound('Video not found')
 
@@ -315,7 +498,7 @@ export async function getWatchUrl(
     throw AppError.notFound('Video not found')
   }
 
-  if (!video.youtubeVideoId) {
+  if (!hasPlayableSource(video)) {
     throw AppError.conflict('This video has not finished uploading yet.')
   }
 
@@ -325,41 +508,111 @@ export async function getWatchUrl(
     throw AppError.paymentRequired('Buy this video before you can watch it.')
   }
 
-  return { watchUrl: watchUrlFor(video.youtubeVideoId) }
+  return watchTargetFor(video)
 }
 
 /**
- * Starts a resumable YouTube upload session. The browser PUTs the file bytes
- * directly to Google; this endpoint only returns the one-time session URL.
+ * Reserves a direct upload session. New uploads prefer Cloudflare Stream, where
+ * the browser PATCHes bytes straight to Cloudflare and playback uses expiring
+ * signed links. Deployments without Cloudflare credentials keep using the
+ * legacy YouTube resumable flow.
  */
 export async function startVideoUpload(
   input: StartVideoUploadInput,
   viewer: VideoViewer,
 ): Promise<StartUploadResult> {
   if (!viewer.id) throw AppError.unauthorized('Authentication required')
-  if (!isYouTubeConfigured()) {
+
+  const useCloudflare = isCloudflareStreamConfigured()
+  if (!useCloudflare && !isYouTubeConfigured()) {
     throw AppError.serviceUnavailable(
-      'YouTube uploads are not configured yet. Add YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, YOUTUBE_REFRESH_TOKEN and YOUTUBE_CHANNEL_ID to the API environment.',
+      'Video uploads are not configured yet. Add CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_STREAM_API_TOKEN and CLOUDFLARE_STREAM_CUSTOMER_CODE to the API environment.',
     )
   }
 
   const user = await UserModel.findById(viewer.id)
-    .select('_id username role creatorStatus')
+    .select('_id username role creatorStatus whatsappUrl')
     .lean()
   if (!user) throw AppError.notFound('Account not found')
 
   const creatorProfile =
     viewer.role === 'admin' ? null : await getApprovedCreator(viewer.id)
-  if (viewer.role !== 'admin' && user.creatorStatus !== 'approved') {
-    throw AppError.forbidden(
-      'Only approved creators can upload videos. Verify your account to become a creator.',
-    )
+  if (viewer.role !== 'admin') {
+    if (user.role === 'user' || user.role === 'student') {
+      throw AppError.forbidden(
+        'Student accounts cannot upload lessons. Sign up as an Educator to share videos.',
+      )
+    }
+    if (user.creatorStatus !== 'approved') {
+      throw AppError.forbidden(
+        'Only approved educators can upload videos. Verify your account first.',
+      )
+    }
+    if (!isWhatsAppGroupUrl(user.whatsappUrl ?? '')) {
+      throw AppError.forbidden(
+        'Add your WhatsApp group or community link before uploading. You can update it in Settings.',
+      )
+    }
   }
 
-  // Unlisted (rather than private) so the creator can preview their own
-  // upload in the app before an administrator approves it. Unlisted videos do
-  // not appear on the channel, in search or in recommendations, and Talma
-  // never exposes the URL to other users until they own the video.
+  const creatorFields = creatorProfile
+    ? {
+        creator: viewer.id,
+        creatorName: creatorProfile.displayName,
+        creatorSharePercent: creatorProfile.sharePercent,
+      }
+    : viewer.role === 'admin'
+      ? { creatorSharePercent: 0 }
+      : {
+          creator: viewer.id,
+          creatorName: user.username,
+          creatorSharePercent: env.creatorSharePercent,
+        }
+
+  if (useCloudflare) {
+    const upload = await createDirectUpload({
+      fileName: input.fileName,
+      sizeBytes: input.fileSizeBytes,
+      maxDurationSeconds: MAX_VIDEO_DURATION_SECONDS,
+    })
+
+    const video = await VideoModel.create({
+      title: input.title,
+      description: input.description,
+      subject: input.subject,
+      classLevel: input.classLevel,
+      periodNumber: input.periodNumber,
+      periodTotal: input.periodTotal,
+      provider: 'cloudflare',
+      streamUid: upload.uid,
+      streamStatus: 'queued',
+      streamUploadUrl: upload.uploadUrl,
+      streamUploadExpiresAt: upload.expiresAt,
+      youtubeVideoId: '',
+      durationSeconds: 0,
+      priceKobo: Math.round(input.priceNaira * 100),
+      currency: env.PAYSTACK_CURRENCY,
+      published: false,
+      status: 'uploading',
+      createdBy: viewer.id,
+      ...creatorFields,
+      originalFileName: input.fileName,
+      fileMimeType: input.mimeType,
+      fileSizeBytes: input.fileSizeBytes,
+    })
+
+    return {
+      video: toVideoDto(video.toObject(), { purchased: false, viewer }),
+      provider: 'cloudflare',
+      uploadMethod: 'tus',
+      uploadUrl: upload.uploadUrl,
+      uploadExpiresAt: upload.expiresAt.toISOString(),
+      streamUid: upload.uid,
+    }
+  }
+
+  // Legacy fallback: unlisted YouTube uploads. New deployments should configure
+  // Cloudflare Stream so paid lessons are not permanently shareable links.
   const { uploadUrl } = await initiateResumableUpload({
     title: input.title,
     description: input.description,
@@ -375,6 +628,9 @@ export async function startVideoUpload(
     description: input.description,
     subject: input.subject,
     classLevel: input.classLevel,
+    periodNumber: input.periodNumber,
+    periodTotal: input.periodTotal,
+    provider: 'youtube',
     youtubeVideoId: '',
     youtubeUploadUrl: uploadUrl,
     uploadExpiresAt,
@@ -384,19 +640,7 @@ export async function startVideoUpload(
     published: false,
     status: 'uploading',
     createdBy: viewer.id,
-    ...(creatorProfile
-      ? {
-          creator: viewer.id,
-          creatorName: creatorProfile.displayName,
-          creatorSharePercent: creatorProfile.sharePercent,
-        }
-      : viewer.role === 'admin'
-        ? { creatorSharePercent: 0 }
-        : {
-            creator: viewer.id,
-            creatorName: user.username,
-            creatorSharePercent: env.creatorSharePercent,
-          }),
+    ...creatorFields,
     originalFileName: input.fileName,
     fileMimeType: input.mimeType,
     fileSizeBytes: input.fileSizeBytes,
@@ -404,6 +648,8 @@ export async function startVideoUpload(
 
   return {
     video: toVideoDto(video.toObject(), { purchased: false, viewer }),
+    provider: 'youtube',
+    uploadMethod: 'youtube',
     uploadUrl,
     uploadExpiresAt: uploadExpiresAt.toISOString(),
   }
@@ -434,6 +680,9 @@ export async function uploadVideoFileToYouTube(
   const video = await VideoModel.findById(id)
   if (!video) throw AppError.notFound('Video not found')
   assertCanManage(video, viewer)
+  if (providerOf(video) !== 'youtube') {
+    throw AppError.conflict('This upload is handled directly by Cloudflare Stream.')
+  }
   if (video.status !== 'uploading') {
     throw AppError.conflict('This upload is not waiting to be finalized.')
   }
@@ -506,15 +755,131 @@ async function forcePrivate(youtubeVideoId: string, privacyStatus: string): Prom
   }
 }
 
-/** Finalizes the browser upload after YouTube returns the new video id. */
+/** Finalizes a browser upload once the provider reports the new video. */
+export interface CompleteVideoUploadInput {
+  youtubeVideoId?: string
+  streamUid?: string
+}
+
+async function completeCloudflareUpload(
+  video: mongoose.HydratedDocument<VideoDocument>,
+  viewer: VideoViewer,
+): Promise<VideoDto> {
+  const streamUid = video.streamUid as string
+  const info = await getStreamVideo(streamUid)
+  if (!info) {
+    video.streamStatus = 'error'
+    video.status = 'failed'
+    await video.save()
+    throw AppError.badRequest(
+      'Cloudflare could not find that upload. Please try uploading the file again.',
+    )
+  }
+
+  if (info.status === 'error') {
+    video.streamStatus = 'error'
+    video.status = 'failed'
+    await video.save()
+    throw AppError.badRequest(
+      `Cloudflare could not process this video${
+        info.errorReasonText ? `: ${info.errorReasonText}` : '.'
+      } Please try again.`,
+    )
+  }
+
+  if (info.status !== 'ready') {
+    // Encoding is asynchronous; the creator list / review queue refreshes this
+    // entry. Return the current state so the browser can poll.
+    video.streamStatus = info.status
+    video.status = 'processing'
+    await video.save()
+    return toVideoDto(video.toObject(), { purchased: false, viewer })
+  }
+
+  if (info.durationSeconds > MAX_VIDEO_DURATION_SECONDS) {
+    await deleteStreamVideo(streamUid).catch((error) => {
+      logger.warn({ err: error, streamUid }, 'Could not delete an over-long Stream upload')
+    })
+    video.streamStatus = 'error'
+    video.status = 'failed'
+    await video.save()
+    throw AppError.badRequest('Videos must be one hour or shorter.')
+  }
+
+  // Direct-upload metadata already asks for signed URLs, but re-assert it at
+  // finalization so a misconfigured token cannot leave the lesson public.
+  try {
+    await secureStreamVideo(streamUid)
+  } catch (error) {
+    if (!info.requireSignedURLs) {
+      await deleteStreamVideo(streamUid).catch((deleteError) => {
+        logger.warn(
+          { err: deleteError, streamUid },
+          'Could not remove an unsecured Stream upload; check Cloudflare',
+        )
+      })
+      video.streamStatus = 'error'
+      video.status = 'failed'
+      await video.save()
+      throw AppError.badGateway(
+        'Talma could not secure the Cloudflare copy, so the upload was removed. Please try again.',
+      )
+    }
+    logger.warn(
+      { err: error, streamUid },
+      'Could not refresh Cloudflare Stream allowed origins; signed playback is still enforced',
+    )
+  }
+
+  video.streamStatus = 'ready'
+  video.durationSeconds = info.durationSeconds
+  video.status = 'pending_review'
+  video.published = false
+  video.streamUploadUrl = undefined
+  video.streamUploadExpiresAt = undefined
+  video.uploadedAt = new Date()
+  await video.save()
+
+  logger.info(
+    { videoId: String(video._id), streamUid, creatorId: String(video.creator ?? '') },
+    'Video uploaded to Cloudflare Stream and queued for review',
+  )
+
+  return toVideoDto(video.toObject(), { purchased: false, viewer })
+}
+
 export async function completeVideoUpload(
   id: string,
-  youtubeVideoId: string,
+  input: CompleteVideoUploadInput,
   viewer: VideoViewer,
 ): Promise<VideoDto> {
   const video = await VideoModel.findById(id)
   if (!video) throw AppError.notFound('Video not found')
   assertCanManage(video, viewer)
+
+  if (providerOf(video) === 'cloudflare') {
+    const streamUid = input.streamUid
+    if (!streamUid) {
+      throw AppError.badRequest('Provide the Cloudflare Stream video id.')
+    }
+    if (video.streamUid && video.streamUid !== streamUid) {
+      throw AppError.badRequest('That upload does not belong to this video.')
+    }
+    if (video.status === 'pending_review' && video.streamUid === streamUid) {
+      return toVideoDto(video.toObject(), { purchased: false, viewer })
+    }
+    if (video.status !== 'uploading' && video.status !== 'processing') {
+      throw AppError.conflict('This upload is not waiting to be finalized.')
+    }
+
+    video.streamUid = streamUid
+    return completeCloudflareUpload(video, viewer)
+  }
+
+  const youtubeVideoId = input.youtubeVideoId
+  if (!youtubeVideoId) {
+    throw AppError.badRequest('Provide the YouTube video id.')
+  }
 
   if (video.status === 'pending_review' && video.youtubeVideoId === youtubeVideoId) {
     return toVideoDto(video.toObject(), { purchased: false, viewer })
@@ -602,7 +967,7 @@ export async function approveVideo(
   if (video.status === 'published' && video.published) {
     return toVideoDto(video.toObject(), { purchased: false, viewer: { id: adminId, role: 'admin' } })
   }
-  if (video.status !== 'pending_review' || !video.youtubeVideoId) {
+  if (video.status !== 'pending_review' || !hasPlayableSource(video)) {
     throw AppError.conflict('Only videos that finished uploading can be approved.')
   }
 
@@ -617,44 +982,83 @@ export async function approveVideo(
     creatorSharePercent = profile.sharePercent
   }
 
-  // Re-check the YouTube copy at approval time. The upload may still have been
-  // processing when the browser finalized it, and the creator could have
-  // changed or removed it in Studio in the meantime.
-  const info = await getVideoInfo(video.youtubeVideoId)
-  if (!info) {
-    throw AppError.badRequest(
-      'YouTube could not find this video. It may have been removed; reject it and ask the creator to upload again.',
-    )
-  }
-  if (
-    info.uploadStatus === 'failed' ||
-    info.uploadStatus === 'rejected' ||
-    info.uploadStatus === 'deleted'
-  ) {
-    if (info.uploadStatus !== 'deleted') {
-      await forcePrivate(video.youtubeVideoId, info.privacyStatus)
-    }
-    video.status = 'failed'
-    await video.save()
-    throw AppError.badRequest('YouTube rejected or removed this video. It cannot be published.')
-  }
-  if (!info.durationSeconds) {
-    throw AppError.conflict(
-      'YouTube is still processing this video. Try approving it again in a few minutes.',
-    )
-  }
-  if (info.durationSeconds > MAX_VIDEO_DURATION_SECONDS) {
-    await deleteYouTubeVideo(video.youtubeVideoId).catch(() => undefined)
-    video.status = 'failed'
-    await video.save()
-    throw AppError.badRequest('Videos must be one hour or shorter.')
-  }
+  let approvedDuration = video.durationSeconds
 
-  await updateVideoPrivacy(video.youtubeVideoId, 'unlisted')
+  if (providerOf(video) === 'cloudflare') {
+    const streamUid = video.streamUid as string
+    const info = await getStreamVideo(streamUid)
+    if (!info) {
+      throw AppError.badRequest(
+        'Cloudflare could not find this video. It may have been removed; reject it and ask the creator to upload again.',
+      )
+    }
+    if (info.status === 'error') {
+      video.streamStatus = 'error'
+      video.status = 'failed'
+      await video.save()
+      throw AppError.badRequest(
+        'Cloudflare rejected or removed this video. It cannot be published.',
+      )
+    }
+    if (info.status !== 'ready' || !info.readyToStream) {
+      throw AppError.conflict(
+        'Cloudflare is still processing this video. Try approving it again in a few minutes.',
+      )
+    }
+    if (info.durationSeconds > MAX_VIDEO_DURATION_SECONDS) {
+      await deleteStreamVideo(streamUid).catch(() => undefined)
+      video.streamStatus = 'error'
+      video.status = 'failed'
+      await video.save()
+      throw AppError.badRequest('Videos must be one hour or shorter.')
+    }
+
+    // Re-assert signed playback and the Talma domain allow-list at publish time.
+    await secureStreamVideo(streamUid)
+    approvedDuration = info.durationSeconds
+  } else {
+    const youtubeVideoId = video.youtubeVideoId
+
+    // Re-check the YouTube copy at approval time. The upload may still have been
+    // processing when the browser finalized it, and the creator could have
+    // changed or removed it in Studio in the meantime.
+    const info = await getVideoInfo(youtubeVideoId)
+    if (!info) {
+      throw AppError.badRequest(
+        'YouTube could not find this video. It may have been removed; reject it and ask the creator to upload again.',
+      )
+    }
+    if (
+      info.uploadStatus === 'failed' ||
+      info.uploadStatus === 'rejected' ||
+      info.uploadStatus === 'deleted'
+    ) {
+      if (info.uploadStatus !== 'deleted') {
+        await forcePrivate(youtubeVideoId, info.privacyStatus)
+      }
+      video.status = 'failed'
+      await video.save()
+      throw AppError.badRequest('YouTube rejected or removed this video. It cannot be published.')
+    }
+    if (!info.durationSeconds) {
+      throw AppError.conflict(
+        'YouTube is still processing this video. Try approving it again in a few minutes.',
+      )
+    }
+    if (info.durationSeconds > MAX_VIDEO_DURATION_SECONDS) {
+      await deleteYouTubeVideo(youtubeVideoId).catch(() => undefined)
+      video.status = 'failed'
+      await video.save()
+      throw AppError.badRequest('Videos must be one hour or shorter.')
+    }
+
+    await updateVideoPrivacy(youtubeVideoId, 'unlisted')
+    approvedDuration = info.durationSeconds
+  }
 
   video.status = 'published'
   video.published = true
-  video.durationSeconds = info.durationSeconds
+  video.durationSeconds = approvedDuration
   video.reviewedBy = new mongoose.Types.ObjectId(adminId)
   video.reviewedAt = new Date()
   video.rejectionReason = undefined
@@ -665,7 +1069,7 @@ export async function approveVideo(
   return toVideoDto(video.toObject(), { purchased: false, viewer: { id: adminId, role: 'admin' } })
 }
 
-/** Admin-only: delete a rejected upload from YouTube and mark it rejected. */
+/** Admin-only: delete a rejected upload at the provider and mark it rejected. */
 export async function rejectVideo(
   id: string,
   reason: string,
@@ -677,7 +1081,16 @@ export async function rejectVideo(
     throw AppError.conflict('Only videos in the review queue can be rejected.')
   }
 
-  if (video.youtubeVideoId) {
+  if (providerOf(video) === 'cloudflare' && video.streamUid) {
+    try {
+      await deleteStreamVideo(video.streamUid)
+    } catch (error) {
+      logger.warn(
+        { err: error, videoId: String(video._id), streamUid: video.streamUid },
+        'Could not delete the rejected Cloudflare Stream video',
+      )
+    }
+  } else if (video.youtubeVideoId) {
     try {
       await deleteYouTubeVideo(video.youtubeVideoId)
     } catch (error) {
@@ -694,6 +1107,8 @@ export async function rejectVideo(
   video.reviewedAt = new Date()
   video.rejectionReason = reason
   video.youtubeUploadUrl = undefined
+  video.streamUploadUrl = undefined
+  video.streamUploadExpiresAt = undefined
   await video.save()
 
   return toVideoDto(video.toObject(), { purchased: false, viewer: { id: adminId, role: 'admin' } })
@@ -705,25 +1120,27 @@ export async function startCheckout(videoId: string, userId: string): Promise<Ch
   if (!video) {
     throw AppError.notFound('Video not found')
   }
-  if (!video.youtubeVideoId) {
+  if (!hasPlayableSource(video)) {
     throw AppError.conflict('This video is not ready to watch yet.')
   }
 
   if (video.priceKobo === 0) {
+    const target = await watchTargetFor(video)
     return {
       alreadyPurchased: true,
       amountKobo: 0,
       currency: video.currency,
-      watchUrl: watchUrlFor(video.youtubeVideoId),
+      watchUrl: target.watchUrl,
     }
   }
 
   if (await hasPaidAccess(userId, videoId)) {
+    const target = await watchTargetFor(video)
     return {
       alreadyPurchased: true,
       amountKobo: video.priceKobo,
       currency: video.currency,
-      watchUrl: watchUrlFor(video.youtubeVideoId),
+      watchUrl: target.watchUrl,
     }
   }
 
@@ -991,6 +1408,7 @@ export async function createVideo(
     description: input.description,
     subject: input.subject,
     classLevel: input.classLevel,
+    provider: 'youtube',
     youtubeVideoId,
     durationSeconds: input.durationSeconds,
     priceKobo: Math.round(input.priceNaira * 100),
@@ -1020,8 +1438,15 @@ export async function updateVideo(
     throw AppError.conflict('Use the review actions to publish or reject this video.')
   }
 
+  const provider = providerOf(video)
   let syncYouTube = false
+  let syncCloudflare = false
   if (input.youtubeUrl !== undefined) {
+    if (provider === 'cloudflare') {
+      throw AppError.badRequest(
+        'Cloudflare Stream videos cannot be replaced with a YouTube link. Delete this entry and add a new YouTube video instead.',
+      )
+    }
     const youtubeVideoId = parseYouTubeVideoId(input.youtubeUrl)
     if (!youtubeVideoId) {
       throw AppError.badRequest(
@@ -1033,10 +1458,12 @@ export async function updateVideo(
   if (input.title !== undefined && input.title !== video.title) {
     video.title = input.title
     syncYouTube = true
+    syncCloudflare = true
   }
   if (input.description !== undefined && input.description !== video.description) {
     video.description = input.description
     syncYouTube = true
+    syncCloudflare = true
   }
   if (input.subject !== undefined) video.subject = input.subject
   if (input.classLevel !== undefined) video.classLevel = input.classLevel
@@ -1047,7 +1474,12 @@ export async function updateVideo(
     video.status = input.published ? 'published' : 'draft'
   }
 
-  if (syncYouTube && video.youtubeVideoId && video.status === 'published') {
+  if (
+    syncYouTube &&
+    provider === 'youtube' &&
+    video.youtubeVideoId &&
+    video.status === 'published'
+  ) {
     try {
       await updateVideoMetadata(video.youtubeVideoId, {
         title: video.title,
@@ -1059,6 +1491,20 @@ export async function updateVideo(
       logger.warn(
         { err: error, videoId: String(video._id), youtubeVideoId: video.youtubeVideoId },
         'Could not sync the video metadata to YouTube; keeping the Talma changes',
+      )
+    }
+  }
+
+  if (syncCloudflare && provider === 'cloudflare' && video.streamUid) {
+    try {
+      await updateStreamVideo(video.streamUid, {
+        title: video.title,
+        description: video.description,
+      })
+    } catch (error) {
+      logger.warn(
+        { err: error, videoId: String(video._id), streamUid: video.streamUid },
+        'Could not sync the video metadata to Cloudflare Stream; keeping the Talma changes',
       )
     }
   }
@@ -1095,7 +1541,16 @@ export async function deleteVideo(id: string, viewer: VideoViewer): Promise<void
     }
   }
 
-  if (video.youtubeVideoId) {
+  if (providerOf(video) === 'cloudflare' && video.streamUid) {
+    try {
+      await deleteStreamVideo(video.streamUid)
+    } catch (error) {
+      logger.warn(
+        { err: error, videoId: String(video._id), streamUid: video.streamUid },
+        'Could not delete the Cloudflare Stream copy; removing the Talma entry anyway',
+      )
+    }
+  } else if (video.youtubeVideoId) {
     try {
       await deleteYouTubeVideo(video.youtubeVideoId)
     } catch (error) {
@@ -1120,20 +1575,41 @@ export interface VideoThumbnail {
 }
 
 /**
- * Proxies the YouTube thumbnail through the API so the YouTube id (and
- * therefore the watch URL) never appears in the browser for a locked video.
- * Private, unreviewed uploads get a placeholder because YouTube does not serve
- * their thumbnails publicly.
+ * Proxies the provider thumbnail through the API so the YouTube id (and watch
+ * URL) or Cloudflare playback token never reaches the browser for a locked
+ * video. Unpublished uploads get a placeholder.
  */
 export async function getVideoThumbnail(id: string): Promise<VideoThumbnail | null> {
   const video = await VideoModel.findById(id)
-    .select('youtubeVideoId title status published')
+    .select('provider youtubeVideoId streamUid title status published')
     .lean()
   if (!video) return null
 
   const status = video.status ?? (video.published ? 'published' : 'draft')
 
-  if (status === 'published' && video.youtubeVideoId) {
+  if (status === 'published' && providerOf(video) === 'cloudflare' && video.streamUid) {
+    if (isCloudflareStreamConfigured()) {
+      try {
+        const { token } = await createStreamToken(video.streamUid)
+        const response = await fetch(streamThumbnailUrl(token), {
+          signal: AbortSignal.timeout(8_000),
+        })
+        if (response.ok) {
+          return {
+            buffer: Buffer.from(await response.arrayBuffer()),
+            contentType: response.headers.get('content-type') ?? 'image/jpeg',
+            // The signed token is cached server-side, so this stays cheap.
+            cacheSeconds: 3_600,
+          }
+        }
+      } catch (error) {
+        logger.warn(
+          { err: error, videoId: String(video._id), streamUid: video.streamUid },
+          'Could not fetch the Cloudflare Stream thumbnail; using the placeholder',
+        )
+      }
+    }
+  } else if (status === 'published' && video.youtubeVideoId) {
     try {
       const response = await fetch(
         `https://i.ytimg.com/vi/${encodeURIComponent(video.youtubeVideoId)}/hqdefault.jpg`,

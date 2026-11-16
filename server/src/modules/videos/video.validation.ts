@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { env } from '../../config/env.js'
-import { VIDEO_CLASS_LEVELS, VIDEO_SUBJECTS } from './video.options.js'
+import { VIDEO_CLASS_LEVELS, VIDEO_MAX_PERIODS, VIDEO_SUBJECTS } from './video.options.js'
 
 /** Every Talma id is a MongoDB ObjectId. */
 export const videoIdParamSchema = z.object({
@@ -22,6 +22,16 @@ const subjectField = z.enum(VIDEO_SUBJECTS, {
 const classLevelField = z.enum(VIDEO_CLASS_LEVELS, {
   errorMap: () => ({ message: 'Choose a class level from the list' }),
 })
+const periodNumberField = z.coerce
+  .number()
+  .int('The period must be a whole number')
+  .min(1, 'The period must be at least 1')
+  .max(VIDEO_MAX_PERIODS, `Lesson series are limited to ${VIDEO_MAX_PERIODS} periods`)
+const periodTotalField = z.coerce
+  .number()
+  .int('The total periods must be a whole number')
+  .min(1, 'A lesson series must have at least 1 period')
+  .max(VIDEO_MAX_PERIODS, `Lesson series are limited to ${VIDEO_MAX_PERIODS} periods`)
 
 /** Legacy admin flow: add an already-uploaded YouTube video by URL. */
 export const createVideoSchema = z.object({
@@ -59,7 +69,7 @@ const uploadTitleField = z
   .string()
   .trim()
   .min(2, 'A title is required')
-  .max(100, 'YouTube titles are limited to 100 characters')
+  .max(160, 'Titles are limited to 160 characters')
 
 /**
  * Creators choose what students pay. `0` means the lesson is free; any paid
@@ -82,34 +92,53 @@ const mimeTypeField = z
     message: 'Only video files can be uploaded',
   })
 
-/** Creator flow: reserve a YouTube resumable upload session. */
-export const startVideoUploadSchema = z.object({
-  title: uploadTitleField,
-  description: descriptionField.default(''),
-  subject: subjectField,
-  classLevel: classLevelField,
-  /** What students pay for lifetime access; `0` publishes a free lesson. */
-  priceNaira: creatorPriceField.default(env.VIDEO_DEFAULT_PRICE_KOBO / 100),
-  fileName: z.string().trim().min(1).max(255),
-  mimeType: mimeTypeField,
-  fileSizeBytes: z.coerce
-    .number()
-    .int()
-    .positive('The file is empty')
-    .max(
-      env.VIDEO_MAX_UPLOAD_BYTES,
-      `The file is too large. The limit is ${Math.floor(env.VIDEO_MAX_UPLOAD_BYTES / (1024 * 1024 * 1024))} GB.`,
-    ),
-  madeForKids: z.boolean().default(false),
-})
+/** Creator flow: reserve a direct-to-Cloudflare (or legacy YouTube) upload session. */
+export const startVideoUploadSchema = z
+  .object({
+    title: uploadTitleField,
+    description: descriptionField.default(''),
+    subject: subjectField,
+    classLevel: classLevelField,
+    /** Position of this lesson in a series; defaults to a standalone 1 of 1. */
+    periodNumber: periodNumberField.default(1),
+    /** Total lessons in the series; defaults to a standalone 1 of 1. */
+    periodTotal: periodTotalField.default(1),
+    /** What students pay for lifetime access; `0` publishes a free lesson. */
+    priceNaira: creatorPriceField.default(env.VIDEO_DEFAULT_PRICE_KOBO / 100),
+    fileName: z.string().trim().min(1).max(255),
+    mimeType: mimeTypeField,
+    fileSizeBytes: z.coerce
+      .number()
+      .int()
+      .positive('The file is empty')
+      .max(
+        env.VIDEO_MAX_UPLOAD_BYTES,
+        `The file is too large. The limit is ${Math.floor(env.VIDEO_MAX_UPLOAD_BYTES / (1024 * 1024 * 1024))} GB.`,
+      ),
+    madeForKids: z.boolean().default(false),
+  })
+  .refine((value) => value.periodNumber <= value.periodTotal, {
+    message: 'The period cannot be greater than the total periods',
+    path: ['periodNumber'],
+  })
 
-/** Called by the browser after YouTube finishes processing the upload. */
-export const completeVideoUploadSchema = z.object({
-  youtubeVideoId: z
-    .string()
-    .trim()
-    .regex(/^[A-Za-z0-9_-]{11}$/, 'That is not a valid YouTube video id'),
-})
+/** Called by the browser after Cloudflare or YouTube finishes the upload. */
+export const completeVideoUploadSchema = z
+  .object({
+    youtubeVideoId: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z0-9_-]{11}$/, 'That is not a valid YouTube video id')
+      .optional(),
+    streamUid: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z0-9_-]{20,64}$/, 'That is not a valid Cloudflare Stream video id')
+      .optional(),
+  })
+  .refine((value) => Boolean(value.youtubeVideoId || value.streamUid), {
+    message: 'Provide the uploaded video id',
+  })
 
 /** Admin approval: optionally adjust the price while publishing. */
 export const approveVideoSchema = z.object({

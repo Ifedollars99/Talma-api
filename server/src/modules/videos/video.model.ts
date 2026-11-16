@@ -1,21 +1,27 @@
 import mongoose, { Schema, type HydratedDocument, type Model } from 'mongoose'
+import { VIDEO_MAX_PERIODS } from './video.options.js'
 
 export type VideoStatus =
   | 'draft'
   | 'uploading'
+  | 'processing'
   | 'pending_review'
   | 'published'
   | 'rejected'
   | 'failed'
 
+/** Where the actual video bytes live. Legacy entries default to YouTube. */
+export type VideoProvider = 'youtube' | 'cloudflare'
+
+export type StreamStatus = 'queued' | 'inprogress' | 'ready' | 'error'
+
 /**
  * A paid video in the Talma library.
  *
- * New videos are uploaded to Talma's YouTube channel through a resumable
- * session URL: the browser sends the file straight to Google and the API only
- * stores metadata. The video is `unlisted` on YouTube so its creator can
- * preview it, but it is only offered in the catalogue after an administrator
- * approves it. The creator chooses the price at upload time.
+ * New videos are uploaded to Cloudflare Stream through a one-time tus session
+ * that the browser sends directly to Cloudflare. Stream videos are created with
+ * signed URLs, so playback links expire and are locked to Talma's domains.
+ * Legacy entries can still point at an unlisted YouTube video.
  */
 export interface VideoDocument {
   title: string
@@ -24,11 +30,23 @@ export interface VideoDocument {
   subject: string
   /** Class or year group, from Primary 1 through University 600 Level. */
   classLevel: string
-  /** Empty until the browser finishes the YouTube upload. */
+  /** Position of this lesson in a multi-part series, e.g. 2 in "2 of 4". */
+  periodNumber?: number
+  /** Total lessons in the series, e.g. 4 in "2 of 4". */
+  periodTotal?: number
+  /** `cloudflare` for new uploads; `youtube` for legacy entries. */
+  provider: VideoProvider
+  /** Empty for YouTube entries. */
   youtubeVideoId: string
   /** One-time resumable session URL; never exposed in public payloads. */
   youtubeUploadUrl?: string
   uploadExpiresAt?: Date
+  /** Cloudflare Stream video id once a direct upload is provisioned. */
+  streamUid?: string
+  streamStatus?: StreamStatus
+  /** One-time Cloudflare tus upload URL; never exposed in public payloads. */
+  streamUploadUrl?: string
+  streamUploadExpiresAt?: Date
   durationSeconds: number
   /** Price in the smallest currency unit (kobo for NGN). */
   priceKobo: number
@@ -63,16 +81,39 @@ const videoSchema = new Schema<VideoDocument>(
     // validated against the canonical lists in video.options.ts.
     subject: { type: String, default: '', trim: true, maxlength: 80 },
     classLevel: { type: String, default: '', trim: true, maxlength: 40 },
+    periodNumber: { type: Number, min: 1, max: VIDEO_MAX_PERIODS },
+    periodTotal: { type: Number, min: 1, max: VIDEO_MAX_PERIODS },
+    provider: {
+      type: String,
+      enum: ['youtube', 'cloudflare'] as const,
+      default: 'youtube',
+      index: true,
+    },
     youtubeVideoId: { type: String, default: '', trim: true },
     youtubeUploadUrl: { type: String },
     uploadExpiresAt: { type: Date },
+    streamUid: { type: String, trim: true, index: true },
+    streamStatus: {
+      type: String,
+      enum: ['queued', 'inprogress', 'ready', 'error'] as const,
+    },
+    streamUploadUrl: { type: String },
+    streamUploadExpiresAt: { type: Date },
     durationSeconds: { type: Number, default: 0, min: 0 },
     priceKobo: { type: Number, required: true, min: 0, default: 200_000 },
     currency: { type: String, required: true, default: 'NGN', uppercase: true, trim: true },
     published: { type: Boolean, default: false, index: true },
     status: {
       type: String,
-      enum: ['draft', 'uploading', 'pending_review', 'published', 'rejected', 'failed'] as const,
+      enum: [
+        'draft',
+        'uploading',
+        'processing',
+        'pending_review',
+        'published',
+        'rejected',
+        'failed',
+      ] as const,
       default: 'draft',
       index: true,
     },

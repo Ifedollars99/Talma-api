@@ -182,11 +182,28 @@ function stubExternalApis(
   return { fetchMock, calls }
 }
 
-async function registerCreator() {
+const CREATOR_WHATSAPP = 'https://chat.whatsapp.com/CreatorAdaLessons'
+
+/**
+ * Applies and gets approved as an educator. Pass `whatsappUrl: null` to keep
+ * the account without a link so the upload gate can be tested.
+ */
+async function registerCreator(
+  options: { username?: string; email?: string; whatsappUrl?: string | null } = {},
+) {
   const user = await registerUser({
-    username: 'CreatorAda',
-    email: 'creator.ada@example.com',
+    username: options.username ?? 'CreatorAda',
+    email: options.email ?? 'creator.ada@example.com',
+    role: 'creator',
   })
+
+  if (options.whatsappUrl !== null) {
+    await request(app)
+      .patch('/api/users/me')
+      .set('Authorization', `Bearer ${user.accessToken}`)
+      .send({ whatsappUrl: options.whatsappUrl ?? CREATOR_WHATSAPP })
+      .expect(200)
+  }
 
   const application = await request(app)
     .post('/api/creators/apply')
@@ -214,6 +231,8 @@ function uploadPayload(overrides: Record<string, unknown> = {}) {
     description: 'A one-hour calculus walkthrough.',
     subject: 'Mathematics',
     classLevel: 'University 200 Level',
+    periodNumber: 2,
+    periodTotal: 4,
     fileName: 'integration.mp4',
     mimeType: 'video/mp4',
     fileSizeBytes: 100 * 1024 * 1024,
@@ -248,6 +267,7 @@ describe('Creator video uploads', () => {
     const user = await registerUser({
       username: 'Applicant',
       email: 'applicant@example.com',
+      role: 'creator',
     })
 
     const application = await request(app)
@@ -285,7 +305,7 @@ describe('Creator video uploads', () => {
     })
   })
 
-  it('rejects uploads from accounts that are not approved creators', async () => {
+  it('rejects uploads from Student accounts', async () => {
     const { calls } = stubExternalApis()
     const student = await registerUser()
 
@@ -295,8 +315,39 @@ describe('Creator video uploads', () => {
       .send(uploadPayload())
       .expect(403)
 
-    expect(response.body.error.message).toContain('approved creators')
+    expect(response.body.error.message).toContain('Student accounts cannot upload lessons')
     expect(calls).toHaveLength(0)
+  })
+
+  it('rejects uploads from educators who are not approved yet', async () => {
+    const { calls } = stubExternalApis()
+    const educator = await registerUser({
+      username: 'PendingEducator',
+      email: 'pending.educator@example.com',
+      role: 'creator',
+    })
+
+    const response = await request(app)
+      .post('/api/videos/uploads')
+      .set('Authorization', `Bearer ${educator.accessToken}`)
+      .send(uploadPayload())
+      .expect(403)
+
+    expect(response.body.error.message).toContain('Only approved educators')
+    expect(calls).toHaveLength(0)
+  })
+
+  it('requires a WhatsApp group link before an approved educator can upload', async () => {
+    stubExternalApis()
+    const { user: creator } = await registerCreator({ whatsappUrl: null })
+
+    const response = await request(app)
+      .post('/api/videos/uploads')
+      .set('Authorization', `Bearer ${creator.accessToken}`)
+      .send(uploadPayload())
+      .expect(403)
+
+    expect(response.body.error.message).toContain('WhatsApp group or community link')
   })
 
   it('refuses to start an upload when the token belongs to another channel', async () => {
@@ -322,6 +373,8 @@ describe('Creator video uploads', () => {
     expect(start.body.video.status).toBe('uploading')
     expect(start.body.video.subject).toBe('Mathematics')
     expect(start.body.video.classLevel).toBe('University 200 Level')
+    expect(start.body.video.periodNumber).toBe(2)
+    expect(start.body.video.periodTotal).toBe(4)
     expect(start.body.video.priceKobo).toBe(200_000)
     expect(start.body.uploadUrl).toContain('upload_id=test-session')
     expect(complete.body.video.status).toBe('pending_review')
@@ -437,6 +490,22 @@ describe('Creator video uploads', () => {
       .expect(422)
 
     expect(JSON.stringify(response.body.error.details)).toContain('minimum paid price')
+  })
+
+  it('rejects a lesson period beyond the series total', async () => {
+    stubExternalApis()
+    const { user: creator } = await registerCreator()
+
+    const response = await request(app)
+      .post('/api/videos/uploads')
+      .set('Authorization', `Bearer ${creator.accessToken}`)
+      .send(uploadPayload({ periodNumber: 5, periodTotal: 4 }))
+      .expect(422)
+
+    expect(JSON.stringify(response.body.error.details)).toContain(
+      'greater than the total periods',
+    )
+    expect(await VideoModel.countDocuments({ creator: creator.userId })).toBe(0)
   })
 
   it('deletes a rejected upload from YouTube and keeps it out of the catalogue', async () => {

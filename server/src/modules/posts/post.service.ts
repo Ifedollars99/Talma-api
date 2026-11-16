@@ -28,6 +28,7 @@ export async function createPost(
     ...(input.classLevel ? { classLevel: input.classLevel } : {}),
     mediaType: input.mediaType,
     ...(input.mediaUrl ? { mediaUrl: input.mediaUrl } : {}),
+    ...(input.youtubeUrl ? { youtubeUrl: input.youtubeUrl } : {}),
   })
 
   return toPostDto(post.toObject(), { likedByMe: false, canDelete: true })

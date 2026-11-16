@@ -2,6 +2,7 @@ import type { NextFunction, Request, RequestHandler, Response } from 'express'
 import { AppError } from '../errors/AppError.js'
 import { verifyAccessToken, type AccessTokenPayload } from '../utils/jwt.js'
 import { env } from '../../config/env.js'
+import { isWhatsAppGroupUrl } from '../validation/whatsapp.js'
 import { UserModel, type UserRole } from '../../modules/users/user.model.js'
 import { CreatorProfileModel } from '../../modules/creators/creator.model.js'
 
@@ -98,11 +99,27 @@ export const requireCreator: RequestHandler = async (req, _res, next) => {
     }
 
     const user = await UserModel.findById(req.userId)
-      .select('_id username creatorStatus')
+      .select('_id username role creatorStatus whatsappUrl')
       .lean()
-    if (!user || user.creatorStatus !== 'approved') {
+    if (!user) {
+      throw AppError.forbidden('Only approved creators can upload videos. Verify your account.')
+    }
+
+    if (user.role === 'user' || user.role === 'student') {
       throw AppError.forbidden(
-        'Only approved creators can upload videos. Verify your account to become a creator.',
+        'Student accounts cannot upload lessons. Sign up as an Educator to share videos.',
+      )
+    }
+
+    if (user.creatorStatus !== 'approved') {
+      throw AppError.forbidden(
+        'Only approved educators can upload videos. Verify your account first.',
+      )
+    }
+
+    if (!isWhatsAppGroupUrl(user.whatsappUrl ?? '')) {
+      throw AppError.forbidden(
+        'Add your WhatsApp group or community link before uploading. You can update it in Settings.',
       )
     }
 

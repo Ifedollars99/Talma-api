@@ -121,12 +121,11 @@ export const uploadVideo = asyncHandler(async (req: Request, res: Response) => {
   res.status(201).json({ youtubeVideoId })
 })
 
-/** POST /api/videos/:id/upload-complete — the uploader finalizes the YouTube id. */
+/** POST /api/videos/:id/upload-complete — the uploader finalizes the provider id. */
 export async function completeUpload(req: Request, res: Response): Promise<void> {
-  const { youtubeVideoId } = req.body as CompleteVideoUploadInput
   const video = await videoService.completeVideoUpload(
     req.params.id as string,
-    youtubeVideoId,
+    req.body as CompleteVideoUploadInput,
     viewerOf(req),
   )
   res.json({ video })

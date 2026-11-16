@@ -27,6 +27,8 @@ export interface UserDocument {
   timezone: string
   bio: string
   avatarUrl: string
+  /** WhatsApp group/community invite shown on the educator's Home card. */
+  whatsappUrl: string
   gender?: Gender
   privacyPublic: boolean
   emailNotifications: boolean
@@ -51,7 +53,7 @@ const userSchema = new Schema<UserDocument>(
       type: String,
       required: true,
       trim: true,
-      maxlength: 32,
+      maxlength: 72,
     },
     usernameNormalized: {
       type: String,
@@ -88,6 +90,7 @@ const userSchema = new Schema<UserDocument>(
     timezone: { type: String, default: 'Africa/Lagos (WAT)' },
     bio: { type: String, default: '', trim: true, maxlength: 500 },
     avatarUrl: { type: String, default: '', trim: true, maxlength: 500 },
+    whatsappUrl: { type: String, default: '', trim: true, maxlength: 500 },
     gender: { type: String, enum: ['male', 'female'] as const },
     privacyPublic: { type: Boolean, default: true },
     emailNotifications: { type: Boolean, default: true },
@@ -115,6 +118,7 @@ export interface PublicUser {
   timezone: string
   bio: string
   avatarUrl: string
+  whatsappUrl: string
   gender?: Gender
   creatorVerifiedAt?: Date
   privacyPublic: boolean
@@ -137,6 +141,7 @@ export function toPublicUser(user: UserDocument & { _id: mongoose.Types.ObjectId
     timezone: user.timezone,
     bio: user.bio ?? '',
     avatarUrl: user.avatarUrl ?? '',
+    whatsappUrl: user.whatsappUrl ?? '',
     ...(user.gender ? { gender: user.gender } : {}),
     ...(user.creatorVerifiedAt ? { creatorVerifiedAt: user.creatorVerifiedAt } : {}),
     privacyPublic: user.privacyPublic,
@@ -165,6 +170,7 @@ export interface PublicProfile extends ProfileSocial {
   state: string
   bio: string
   avatarUrl: string
+  whatsappUrl: string
   gender?: Gender
   creatorVerifiedAt?: Date
   createdAt: Date
@@ -183,6 +189,7 @@ export function toPublicProfile(
     state: user.state ?? '',
     bio: user.bio ?? '',
     avatarUrl: user.avatarUrl ?? '',
+    whatsappUrl: user.whatsappUrl ?? '',
     ...(user.gender ? { gender: user.gender } : {}),
     ...(user.creatorVerifiedAt ? { creatorVerifiedAt: user.creatorVerifiedAt } : {}),
     createdAt: user.createdAt,
@@ -200,6 +207,7 @@ export interface FollowUserSummary extends ProfileSocial {
   state: string
   bio: string
   avatarUrl: string
+  whatsappUrl?: string
 }
 
 export const UserModel: Model<UserDocument> =

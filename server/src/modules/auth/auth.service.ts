@@ -85,15 +85,18 @@ export async function register(
     throw AppError.conflict('An account with that email already exists')
   }
 
-  const usernameNormalized = input.username.toLowerCase()
+  const displayName = input.username.replace(/\s+/g, ' ').trim()
+  const usernameNormalized = displayName.toLowerCase()
   const existingUsername = await UserModel.findOne({ usernameNormalized }).select('_id').lean()
   if (existingUsername) {
-    throw AppError.conflict('That username is already taken')
+    throw AppError.conflict(
+      'That name is already registered. Try adding a middle name or initial.',
+    )
   }
 
   const user = await UserModel.create({
     email: input.email,
-    username: input.username,
+    username: displayName,
     usernameNormalized,
     passwordHash: await hashPassword(input.password),
     role: input.role,

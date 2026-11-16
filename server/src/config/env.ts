@@ -77,8 +77,33 @@ const envSchema = z.object({
     (value) => (value === '' ? undefined : value),
     z.coerce.number().min(0).max(100).default(30),
   ),
-  // YouTube channel used for Talma-hosted uploads. The refresh token is minted
-  // once with `npm run youtube:auth --workspace server`.
+  // Cloudflare Stream. New creator uploads go here so playback uses expiring,
+  // domain-locked signed URLs instead of a permanently shareable video link.
+  CLOUDFLARE_ACCOUNT_ID: z.string().default(''),
+  CLOUDFLARE_STREAM_API_TOKEN: z.string().default(''),
+  /** The code in `customer-<code>.cloudflarestream.com` (Stream dashboard). */
+  CLOUDFLARE_STREAM_CUSTOMER_CODE: z.string().default(''),
+  /**
+   * Domains allowed to embed Stream videos. Comma-separated, without a scheme
+   * (for example `talma.com,www.talma.com`). Defaults to the CLIENT_APP_URL host.
+   */
+  CLOUDFLARE_STREAM_ALLOWED_ORIGINS: csv,
+  /** How long a signed playback token remains valid. Max 24 hours. */
+  CLOUDFLARE_STREAM_TOKEN_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(60)
+    .max(86_400)
+    .default(7_200),
+  /** How long a one-time direct upload URL can be used. Max 24 hours. */
+  CLOUDFLARE_STREAM_UPLOAD_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(300)
+    .max(86_400)
+    .default(21_600),
+  // YouTube channel used for legacy Talma-hosted uploads. New uploads prefer
+  // Cloudflare Stream; this remains as a fallback for existing deployments.
   YOUTUBE_CLIENT_ID: z.string().default(''),
   YOUTUBE_CLIENT_SECRET: z.string().default(''),
   YOUTUBE_REFRESH_TOKEN: z.string().default(''),
@@ -180,6 +205,10 @@ export const env = {
     raw.YOUTUBE_CLIENT_SECRET.trim().length > 0 &&
     raw.YOUTUBE_REFRESH_TOKEN.trim().length > 0 &&
     raw.YOUTUBE_CHANNEL_ID.trim().length > 0,
+  cloudflareStreamConfigured:
+    raw.CLOUDFLARE_ACCOUNT_ID.trim().length > 0 &&
+    raw.CLOUDFLARE_STREAM_API_TOKEN.trim().length > 0 &&
+    raw.CLOUDFLARE_STREAM_CUSTOMER_CODE.trim().length > 0,
   /** The creator's default share, derived from the platform cut. */
   creatorSharePercent: 100 - raw.PLATFORM_VIDEO_SHARE_PERCENT,
   paystackCallbackUrl:

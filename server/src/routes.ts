@@ -13,6 +13,7 @@ import { testsRouter } from './modules/tests/test.routes.js'
 import { uploadsRouter } from './modules/uploads/upload.routes.js'
 import { videosRouter } from './modules/videos/video.routes.js'
 import { creatorsRouter } from './modules/creators/creator.routes.js'
+import { homeRouter } from './modules/home/home.routes.js'
 import { aiRouter } from './modules/ai/ai.routes.js'
 
 /** Every API route lives under `/api`. */
@@ -52,4 +53,5 @@ apiRouter.use('/tests', testsRouter)
 apiRouter.use('/uploads', uploadsRouter)
 apiRouter.use('/videos', videosRouter)
 apiRouter.use('/creators', creatorsRouter)
+apiRouter.use('/home', homeRouter)
 apiRouter.use('/ai', aiRouter)

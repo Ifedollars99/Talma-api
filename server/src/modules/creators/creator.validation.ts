@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { whatsappGroupUrlSchema } from '../../common/validation/whatsapp.js'
 
 const creatorIdParamSchema = z.object({
   id: z.string().regex(/^[a-f\d]{24}$/i, 'Invalid creator id'),
@@ -23,6 +24,11 @@ export const creatorVerificationSchema = z.object({
     .string()
     .trim()
     .regex(/^\d{6}$/, 'Enter the six-digit code from your email'),
+  /**
+   * New verifications must save a WhatsApp group/community link. It is optional
+   * in the body because an existing profile link may already be on the account.
+   */
+  whatsappUrl: whatsappGroupUrlSchema.optional(),
 })
 
 export const creatorStatusQuerySchema = z.object({

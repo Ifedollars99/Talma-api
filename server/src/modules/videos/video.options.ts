@@ -96,3 +96,6 @@ export const VIDEO_CLASS_LEVELS = [
 
 export type VideoSubject = (typeof VIDEO_SUBJECTS)[number]
 export type VideoClassLevel = (typeof VIDEO_CLASS_LEVELS)[number]
+
+/** Maximum number of lessons in a multi-part series. */
+export const VIDEO_MAX_PERIODS = 30

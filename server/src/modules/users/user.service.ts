@@ -36,18 +36,21 @@ export async function updateProfile(
   }
 
   if (input.username && input.username !== user.username) {
-    const normalized = input.username.toLowerCase()
+    const displayName = input.username.replace(/\s+/g, ' ').trim()
+    const normalized = displayName.toLowerCase()
     const taken = await UserModel.findOne({ usernameNormalized: normalized, _id: { $ne: user._id } })
       .select('_id')
       .lean()
     if (taken) {
-      throw AppError.conflict('That username is already taken')
+      throw AppError.conflict(
+        'That name is already registered. Try adding a middle name or initial.',
+      )
     }
-    user.username = input.username
+    user.username = displayName
     user.usernameNormalized = normalized
     await PostModel.updateMany(
       { author: user._id },
-      { $set: { authorName: input.username, authorUsername: input.username } },
+      { $set: { authorName: displayName, authorUsername: displayName } },
     )
   }
 
@@ -56,6 +59,7 @@ export async function updateProfile(
   if (input.language !== undefined) user.language = input.language
   if (input.timezone !== undefined) user.timezone = input.timezone
   if (input.bio !== undefined) user.bio = input.bio
+  if (input.whatsappUrl !== undefined) user.whatsappUrl = input.whatsappUrl
   if (input.avatarUrl !== undefined && input.avatarUrl !== user.avatarUrl) {
     user.avatarUrl = input.avatarUrl
     await PostModel.updateMany(
@@ -204,6 +208,7 @@ async function buildUserSummaries(
     state: user.state ?? '',
     bio: user.bio ?? '',
     avatarUrl: user.avatarUrl ?? '',
+    ...(user.whatsappUrl ? { whatsappUrl: user.whatsappUrl } : {}),
     followerCount: followerMap.get(String(user._id)) ?? 0,
     followingCount: followingMap.get(String(user._id)) ?? 0,
     isFollowing: viewerFollowing.has(String(user._id)),
@@ -285,6 +290,23 @@ export async function searchProfiles(
   )
 
   return summaries.slice(0, 20)
+}
+
+/**
+ * Verified educators who have published a WhatsApp group/community link.
+ * These are the profiles shown in the signed-in Home spotlight.
+ */
+export async function listFeaturedEducators(limit = 6): Promise<FollowUserSummary[]> {
+  const users = (await UserModel.find({
+    role: { $in: ['creator', 'lecturer'] },
+    creatorStatus: 'approved',
+    privacyPublic: true,
+    whatsappUrl: { $exists: true, $ne: '' },
+  })
+    .sort({ creatorVerifiedAt: -1, createdAt: -1 })
+    .limit(limit)) as UserWithId[]
+
+  return buildUserSummaries(users)
 }
 
 /** Follows an account. Following is idempotent, so double-taps are harmless. */

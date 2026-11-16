@@ -3,6 +3,7 @@ import mongoose from 'mongoose'
 import { env } from '../../config/env.js'
 import { AppError } from '../../common/errors/AppError.js'
 import { hashOpaqueToken } from '../../common/utils/jwt.js'
+import { isWhatsAppGroupUrl } from '../../common/validation/whatsapp.js'
 import { sendCreatorVerificationEmail, sendCreatorWelcomeEmail } from '../../common/email/mailer.js'
 import { PostModel } from '../posts/post.model.js'
 import {
@@ -179,6 +180,11 @@ export async function requestCreatorVerification(
   if (!user) {
     throw AppError.notFound('Account not found')
   }
+  if (user.role === 'user' || user.role === 'student') {
+    throw AppError.forbidden(
+      'Student accounts cannot be verified as educators. Sign up with an Educator account to share lessons.',
+    )
+  }
   if (user.creatorStatus === 'approved') {
     throw AppError.conflict('Your account is already verified as a creator.')
   }
@@ -214,12 +220,19 @@ export async function requestCreatorVerification(
 export async function confirmCreatorVerification(
   userId: string,
   code: string,
+  whatsappUrl?: string,
 ): Promise<{ user: PublicUser; message: string }> {
   const user = await UserModel.findById(userId).select(
     '+creatorVerificationCodeHash +creatorVerificationExpires',
   )
   if (!user) {
     throw AppError.notFound('Account not found')
+  }
+
+  if (user.role === 'user' || user.role === 'student') {
+    throw AppError.forbidden(
+      'Student accounts cannot be verified as educators. Sign up with an Educator account to share lessons.',
+    )
   }
 
   if (
@@ -234,10 +247,18 @@ export async function confirmCreatorVerification(
     throw AppError.badRequest('That code is not correct. Please check it and try again.')
   }
 
+  const link = (whatsappUrl ?? user.whatsappUrl ?? '').trim()
+  if (!isWhatsAppGroupUrl(link)) {
+    throw AppError.badRequest(
+      'Add your WhatsApp group or community link before you finish verifying.',
+    )
+  }
+
   user.creatorStatus = 'approved'
   if (user.role !== 'admin') {
     user.role = 'creator'
   }
+  user.whatsappUrl = link
   user.emailVerified = true
   user.creatorVerifiedAt = new Date()
   user.creatorVerificationCodeHash = undefined
@@ -262,7 +283,7 @@ export async function confirmCreatorVerification(
 
   return {
     user: toPublicUser(user),
-    message: 'Welcome to being a creator! You can now upload videos and media.',
+    message: 'Welcome to being a creator! Your WhatsApp link is live on Home.',
   }
 }
 

@@ -13,7 +13,12 @@ export interface AuthenticatedUser {
 
 /** Registers a user and returns their access token plus cookies. */
 export async function registerUser(
-  overrides: Partial<{ username: string; email: string; password: string; role: 'student' | 'lecturer' }> = {},
+  overrides: Partial<{
+    username: string
+    email: string
+    password: string
+    role: 'user' | 'creator' | 'student' | 'lecturer'
+  }> = {},
 ): Promise<AuthenticatedUser & { cookies: string[] }> {
   const payload = {
     username: overrides.username ?? 'TestStudent',
