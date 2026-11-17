@@ -1,22 +1,34 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { roleLabel } from '../lib/roleLabel'
 import { useCreatorProfile } from '../hooks/useCreators'
-import { useMessages } from '../hooks/useMessages'
 import { useNotifications } from '../hooks/useNotifications'
 import ProfileMenu from '../components/profile/ProfileMenu'
 import CreatorSearchModal from '../components/profile/CreatorSearchModal'
 import WelcomeCard from '../components/dashboard/WelcomeCard'
-import HomeContent from '../components/dashboard/HomeContent'
+import HomeContent, { type HomeSection } from '../components/dashboard/HomeContent'
 import ClassroomView from '../components/courses/CoursesView'
 import MessagesView from '../components/messages/MessagesView'
 import StudyAssistantView from '../components/assistant/StudyAssistantView'
 import SettingsView from '../components/settings/SettingsView'
 import VideosView from '../components/videos/VideosView'
 import CreatorUploadModal from '../components/videos/CreatorUploadModal'
+import CreatorVerificationModal from '../components/videos/CreatorVerificationModal'
 
 type Tab = 'dashboard' | 'classroom' | 'videos' | 'messages' | 'assistant' | 'settings'
+
+/** Home sub-pages are kept in the URL so they can be bookmarked and shared. */
+function readHomeSection(value: string | null): HomeSection {
+  switch (value) {
+    case 'educators':
+    case 'schools':
+    case 'classes':
+      return value
+    default:
+      return 'overview'
+  }
+}
 
 const NAV_ITEMS: { id: Tab; label: string; icon: string }[] = [
   { id: 'dashboard', label: 'Home', icon: 'bi-speedometer2' },
@@ -44,9 +56,29 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard')
   const [searchOpen, setSearchOpen] = useState(false)
   const [uploadOpen, setUploadOpen] = useState(false)
+  const [verificationOpen, setVerificationOpen] = useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
 
   const paymentReference = searchParams.get('reference') ?? searchParams.get('trxref')
+  const homeSection = readHomeSection(searchParams.get('home'))
+
+  const openHomeSection = (section: HomeSection) => {
+    if (section === homeSection) return
+    setActiveTab('dashboard')
+    const next = new URLSearchParams(searchParams)
+    if (section === 'overview') next.delete('home')
+    else next.set('home', section)
+    setSearchParams(next)
+  }
+
+  const selectTab = (tab: Tab) => {
+    setActiveTab(tab)
+    if (tab === 'dashboard' && searchParams.has('home')) {
+      const next = new URLSearchParams(searchParams)
+      next.delete('home')
+      setSearchParams(next)
+    }
+  }
 
   // Paystack returns the buyer to /mycamp?reference=… — open the Videos tab so
   // the checkout can be confirmed and the card unlocked straight away.
@@ -61,20 +93,32 @@ export default function DashboardPage() {
     setSearchParams(next, { replace: true })
   }
 
-  const { data: messagesData } = useMessages()
   const { data: notificationsData } = useNotifications()
 
-  const messages = useMemo(() => messagesData?.messages ?? [], [messagesData])
-  const unreadMessages = useMemo(() => messages.filter((message) => message.unread).length, [messages])
   const notifications = notificationsData?.unread ?? 0
 
   const username = user?.username ?? 'Student'
   const userRole = roleLabel(user?.role)
 
   const isAdmin = user?.role === 'admin'
+  const isEducator =
+    user?.role === 'creator' || user?.role === 'lecturer' || user?.role === 'admin'
   const profileQuery = useCreatorProfile(Boolean(user) && !isAdmin)
   const creatorProfile = profileQuery.data?.creator ?? null
+  const creatorStatus = isAdmin
+    ? 'approved'
+    : (creatorProfile?.status ?? user?.creatorStatus ?? 'none')
   const sharePercent = creatorProfile?.sharePercent ?? 70
+
+  /** Educators can always start an upload; unverified ones verify first. */
+  const startUpload = () => {
+    if (!isEducator) return
+    if (creatorStatus !== 'approved') {
+      setVerificationOpen(true)
+      return
+    }
+    setUploadOpen(true)
+  }
 
   return (
     <div className="talma-app min-h-screen bg-[#f7f9f7]">
@@ -120,9 +164,9 @@ export default function DashboardPage() {
                   className="p-2 text-white/70 hover:text-white relative transition-colors"
                 >
                   <i className="bi bi-bell text-xl" />
-                  {unreadMessages > 0 && (
+                  {notifications > 0 && (
                     <span className="absolute -top-1 -right-1 bg-[#8a6d00] text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
-                      {unreadMessages}
+                      {notifications}
                     </span>
                   )}
                 </button>
@@ -145,7 +189,7 @@ export default function DashboardPage() {
                   <li key={item.id}>
                     <button
                       type="button"
-                      onClick={() => setActiveTab(item.id)}
+                      onClick={() => selectTab(item.id)}
                       className={`w-full flex items-center space-x-3 pl-3 pr-4 py-3 rounded-lg transition-colors text-base border-l-4 ${
                         activeTab === item.id
                           ? 'bg-[#fdf5d7] text-[#0a0a0a] border-[#f5c842] font-medium'
@@ -168,16 +212,15 @@ export default function DashboardPage() {
                 <WelcomeCard
                   username={username}
                   notifications={notifications}
-                  messageCount={messages.length}
                 />
-                <HomeContent />
+                <HomeContent section={homeSection} onNavigate={openHomeSection} />
               </div>
             )}
 
             {activeTab === 'classroom' && (
               <ClassroomView
                 onOpenSearch={() => setSearchOpen(true)}
-                onUpload={() => setUploadOpen(true)}
+                onUpload={startUpload}
               />
             )}
 
@@ -188,7 +231,7 @@ export default function DashboardPage() {
               />
             )}
 
-            {activeTab === 'messages' && <MessagesView messages={messages} />}
+            {activeTab === 'messages' && <MessagesView />}
 
             {activeTab === 'assistant' && <StudyAssistantView />}
 
@@ -204,6 +247,26 @@ export default function DashboardPage() {
         onUploaded={() => setUploadOpen(false)}
       />
 
+      <CreatorVerificationModal
+        open={verificationOpen}
+        onClose={() => setVerificationOpen(false)}
+      />
+
+      {/* Mobile upload shortcut — educators only, on Home, Classroom and Multimedia */}
+      {isEducator &&
+        (activeTab === 'dashboard' ||
+          activeTab === 'classroom' ||
+          activeTab === 'videos') && (
+          <button
+            type="button"
+            onClick={startUpload}
+            aria-label="Upload a video"
+            className="lg:hidden fixed bottom-[78px] right-4 z-40 w-14 h-14 bg-[#f5c842] rounded-full shadow-xl flex items-center justify-center text-[#0a0a0a]"
+          >
+            <i className="bi bi-cloud-arrow-up text-2xl" />
+          </button>
+        )}
+
       {/* Mobile Bottom Nav - X / Twitter style */}
       <nav className="fixed bottom-0 inset-x-0 z-50 lg:hidden bg-white/95 backdrop-blur-md border-t border-[#e6e9e6] pb-[env(safe-area-inset-bottom)]">
         <div className="grid grid-cols-5 h-[62px]">
@@ -211,7 +274,7 @@ export default function DashboardPage() {
             <button
               key={item.id}
               type="button"
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => selectTab(item.id)}
               className={`flex flex-col items-center justify-center gap-0.5 transition-colors ${
                 activeTab === item.id ? 'text-[#0a0a0a]' : 'text-[#7b857b]'
               }`}

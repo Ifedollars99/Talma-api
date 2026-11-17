@@ -4,6 +4,15 @@
    and White (#ffffff) only.
    --------------------------------------------------------------------------- */
 
+/*
+ * The app shell in index.html adds a 24px grey frame for the signed-in app.
+ * The public landing page is full-bleed, so remove that frame while it is shown.
+ */
+#root:has(.landing-page) {
+  padding-block: 0;
+  background: transparent;
+}
+
 .landing-page {
   --green: #3a8f4d;
   --green-bright: #7cb342;
@@ -967,7 +976,7 @@
 }
 
 /* ---------- Responsive ---------- */
-@media (max-width: 1020px) {
+@media (max-width: 1023px) {
   .site-header__nav,
   .site-header__cta {
     display: none;
@@ -975,7 +984,7 @@
   .site-header__burger {
     display: block;
   }
-  .site-header__mobile {
+  .site-header__mobile.is-open {
     display: block;
   }
   .hero__inner {
@@ -1018,11 +1027,23 @@
   .carousel__nav {
     display: none;
   }
+  .site-header__inner {
+    padding: 0 1rem;
+  }
   .site-header__bar {
-    height: 84px;
+    height: 72px;
+  }
+  .brand {
+    gap: 0.6rem;
+  }
+  .brand__mark {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    font-size: 1.1rem;
   }
   .brand__name {
-    font-size: 3.1rem;
+    font-size: 1.4rem;
   }
 }
 

@@ -1,18 +1,13 @@
 interface WelcomeCardProps {
   username: string
   notifications: number
-  messageCount: number
 }
 
 /**
  * Home greeting. The classroom search, feed tabs and posts now live on the
  * Classroom tab, so Home keeps only this welcome section.
  */
-export default function WelcomeCard({
-  username,
-  notifications,
-  messageCount,
-}: WelcomeCardProps) {
+export default function WelcomeCard({ username, notifications }: WelcomeCardProps) {
   return (
     <>
       {/* Mobile greeting */}
@@ -25,8 +20,7 @@ export default function WelcomeCard({
           <p className="welcome-card__meta text-sm text-white/70 leading-relaxed mt-1">
             You have{' '}
             <span className="text-[#f5c842] font-medium">{notifications} new notifications</span>{' '}
-            and <span className="text-[#86efac] font-medium">{messageCount} unread</span>{' '}
-            messages waiting for you.
+            waiting for you.
           </p>
         </div>
       </div>
@@ -42,7 +36,6 @@ export default function WelcomeCard({
           </h1>
           <p className="welcome-card__meta text-sm text-white/70">
             <span className="text-[#f5c842] font-medium">{notifications} new notifications</span>{' '}
-            and <span className="text-[#7cb342] font-medium">{messageCount} unread</span> messages
             waiting.
           </p>
         </div>

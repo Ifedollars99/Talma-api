@@ -103,3 +103,124 @@ describe('Home content', () => {
     }
   })
 })
+
+describe('Community home advertisements', () => {
+  it('requires a signed-in account before posting', async () => {
+    await request(app)
+      .post('/api/home/advertisements')
+      .send({
+        kind: 'school',
+        title: 'Unauthorised Academy',
+        subtitle: 'Admissions open',
+        description: 'This request should never reach the database.',
+        location: 'Lagos',
+        ctaUrl: 'https://example.com/unauthorised',
+      })
+      .expect(401)
+  })
+
+  it('lets a Student advertise a school', async () => {
+    const student = await registerUser({
+      username: 'SchoolAdvertiser',
+      email: 'school.advertiser@example.com',
+    })
+
+    const payload = {
+      kind: 'school',
+      title: 'Sunrise Model College',
+      subtitle: 'Admissions open for JSS 1',
+      description: 'A community secondary school with science labs and after-school tutoring.',
+      location: 'Ikeja, Lagos',
+      ctaUrl: 'https://example.com/sunrise-model-college',
+    }
+
+    const created = await request(app)
+      .post('/api/home/advertisements')
+      .set('Authorization', `Bearer ${student.accessToken}`)
+      .send(payload)
+      .expect(201)
+
+    expect(created.body.advertisement).toMatchObject({
+      kind: 'school',
+      title: payload.title,
+      authorUsername: 'SchoolAdvertiser',
+      badge: 'Admissions',
+      ctaLabel: 'Learn more',
+    })
+
+    const home = await request(app)
+      .get('/api/home')
+      .set('Authorization', `Bearer ${student.accessToken}`)
+      .expect(200)
+
+    expect(home.body.schoolAds[0]).toMatchObject({
+      kind: 'school',
+      title: payload.title,
+      authorUsername: 'SchoolAdvertiser',
+    })
+    expect(home.body.teachingAds.every((ad: { kind: string }) => ad.kind === 'teaching')).toBe(
+      true,
+    )
+  })
+
+  it('lets a Student post a teaching job', async () => {
+    const student = await registerUser({
+      username: 'JobPoster',
+      email: 'job.poster@example.com',
+    })
+
+    const payload = {
+      kind: 'teaching',
+      title: 'Government Teacher (Physics)',
+      subtitle: 'Crown Heights College',
+      description: 'Full-time physics teacher needed for senior secondary classes. Apply online.',
+      location: 'Abuja, FCT · Full-time',
+      ctaUrl: 'https://example.com/jobs/physics-teacher',
+    }
+
+    const created = await request(app)
+      .post('/api/home/advertisements')
+      .set('Authorization', `Bearer ${student.accessToken}`)
+      .send(payload)
+      .expect(201)
+
+    expect(created.body.advertisement).toMatchObject({
+      kind: 'teaching',
+      title: payload.title,
+      authorUsername: 'JobPoster',
+      badge: 'Job opportunity',
+      ctaLabel: 'Apply now',
+    })
+
+    const home = await request(app)
+      .get('/api/home')
+      .set('Authorization', `Bearer ${student.accessToken}`)
+      .expect(200)
+
+    expect(home.body.teachingAds[0]).toMatchObject({
+      kind: 'teaching',
+      title: payload.title,
+      authorUsername: 'JobPoster',
+    })
+  })
+
+  it('rejects an advert with an invalid link', async () => {
+    const student = await registerUser({
+      username: 'InvalidAdvertiser',
+      email: 'invalid.advertiser@example.com',
+    })
+
+    await request(app)
+      .post('/api/home/advertisements')
+      .set('Authorization', `Bearer ${student.accessToken}`)
+      .send({
+        kind: 'school',
+        title: 'Linkless Academy',
+        subtitle: 'Admissions open',
+        description: 'This advert has an invalid contact link.',
+        location: 'Lagos',
+        ctaUrl: 'not-a-link',
+      })
+      .expect(422)
+  })
+})

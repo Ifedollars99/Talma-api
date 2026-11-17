@@ -425,6 +425,9 @@ export interface Advertisement {
   badge: string
   ctaLabel: string
   ctaUrl: string
+  /** Present on adverts posted by the Talma community. */
+  authorUsername?: string
+  createdAt?: string
 }
 
 export interface HomeEducator extends FollowUserSummary {

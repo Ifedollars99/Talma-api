@@ -36,10 +36,11 @@ export default function DashboardFeed({ onOpenSearch, onUpload }: DashboardFeedP
   const [postToDelete, setPostToDelete] = useState<string | null>(null)
 
   const { user } = useAuth()
+  // Uploads are available to every educator account. Verification is enforced
+  // server-side and prompted when an unverified educator starts an upload, so
+  // the button must not depend on the approval status.
   const isEducator =
     user?.role === 'creator' || user?.role === 'lecturer' || user?.role === 'admin'
-  const isCreator =
-    isEducator && (user?.creatorStatus === 'approved' || user?.role === 'admin')
 
   const { data, isLoading, isError } = useFeed({ tab: feedTab })
   const deletePost = useDeletePost()
@@ -96,7 +97,7 @@ export default function DashboardFeed({ onOpenSearch, onUpload }: DashboardFeedP
         </div>
 
         {/* Mobile upload entry */}
-        {isCreator && (
+        {isEducator && (
           <div className="bg-white border-b border-[#e6e9e6] px-4 py-3">
             <button
               type="button"
@@ -211,18 +212,6 @@ export default function DashboardFeed({ onOpenSearch, onUpload }: DashboardFeedP
             </article>
           ))}
         </div>
-
-        {/* Mobile FAB (upload) */}
-        {isCreator && (
-          <button
-            type="button"
-            onClick={onUpload}
-            aria-label="Upload a video"
-            className="fixed bottom-[78px] right-4 z-40 w-14 h-14 bg-[#f5c842] rounded-full shadow-xl flex items-center justify-center text-[#0a0a0a]"
-          >
-            <i className="bi bi-cloud-arrow-up text-2xl" />
-          </button>
-        )}
       </div>
 
       {/* Desktop creator search */}
@@ -259,7 +248,7 @@ export default function DashboardFeed({ onOpenSearch, onUpload }: DashboardFeedP
       </div>
 
       {/* Upload Video Section - Refined (DESKTOP ONLY) */}
-      {isCreator && (
+      {isEducator && (
         <div className="hidden lg:block bg-white rounded-2xl border border-[#e6e9e6] overflow-hidden shadow-sm">
           <div className="p-8 bg-gradient-to-r from-white via-[#fdf5d7]/20 to-white">
             <div className="flex flex-col items-center text-center gap-5 py-4">

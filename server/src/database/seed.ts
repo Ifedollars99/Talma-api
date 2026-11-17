@@ -29,6 +29,7 @@ import { TestAttemptModel } from '../modules/tests/testAttempt.model.js'
 import { VideoModel } from '../modules/videos/video.model.js'
 import { VideoPurchaseModel } from '../modules/videos/videoPurchase.model.js'
 import { CreatorProfileModel } from '../modules/creators/creator.model.js'
+import { AdvertisementModel } from '../modules/home/advertisement.model.js'
 
 const force = process.argv.includes('--force')
 
@@ -302,6 +303,7 @@ async function clearCollections(): Promise<void> {
     VideoModel.deleteMany({}),
     VideoPurchaseModel.deleteMany({}),
     CreatorProfileModel.deleteMany({}),
+    AdvertisementModel.deleteMany({}),
   ])
   logger.warn('Cleared all Talma collections (--force)')
 }

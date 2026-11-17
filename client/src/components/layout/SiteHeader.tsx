@@ -62,7 +62,9 @@ export function SiteHeader() {
 
       <div
         className={`site-header__mobile lg:hidden transition-all duration-300 ease-out ${
-          isMobileOpen ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'
+          isMobileOpen
+            ? 'is-open opacity-100 translate-y-0'
+            : 'opacity-0 -translate-y-4 pointer-events-none'
         }`}
       >
         <div className="px-4 pt-2 pb-6 space-y-2 border-t border-[#3a8f4d]/15 bg-white/95 backdrop-blur-md">

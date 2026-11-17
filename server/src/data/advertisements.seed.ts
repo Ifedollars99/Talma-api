@@ -1,9 +1,8 @@
 /**
- * Home-page advertisement placements.
+ * Demo Home-page advertisement placements.
  *
- * These are demo placements so a fresh install has something useful to show.
- * Replace an entry (or point the Home service at a database collection) when
- * real schools and educators start buying placements.
+ * These keep a fresh install useful. Adverts posted by signed-in users are
+ * stored in the database and shown before these demo entries.
  */
 export type AdvertisementKind = 'school' | 'teaching'
 
@@ -61,39 +60,39 @@ export const schoolAdvertisements: Advertisement[] = [
 
 export const teachingAdvertisements: Advertisement[] = [
   {
-    id: 'teaching-waec-maths',
+    id: 'teaching-physics-teacher',
     kind: 'teaching',
-    title: 'WAEC Mathematics Clinic',
-    subtitle: 'Live weekend revision with Mr. Tunde',
+    title: 'Physics Teacher (Senior Secondary)',
+    subtitle: 'Crown Heights College',
     description:
-      'Six weeks of exam-focused algebra, geometry and statistics. Past questions, worked solutions and a private study group.',
-    location: 'Online · Saturdays',
-    badge: 'Weekend classes',
-    ctaLabel: 'Join on WhatsApp',
-    ctaUrl: 'https://chat.whatsapp.com/TalmaWaecMathsClinic',
+      'Full-time physics teacher needed for SSS 1–3. Strong WAEC and NECO results, a teaching qualification and classroom experience are preferred.',
+    location: 'Abuja, FCT · Full-time',
+    badge: 'Teaching job',
+    ctaLabel: 'Apply now',
+    ctaUrl: 'https://example.com/jobs/crown-heights-physics-teacher',
   },
   {
-    id: 'teaching-jamb-chemistry',
+    id: 'teaching-lecturer-computer-science',
     kind: 'teaching',
-    title: 'JAMB Chemistry Masterclass',
-    subtitle: 'Dr. Sarah Okonkwo',
+    title: 'Lecturer II — Computer Science',
+    subtitle: 'Riverside Polytechnic',
     description:
-      'Concept clinics, timed practice papers and weekly score reviews for students targeting 300+.',
-    location: 'Online · Tuesdays & Thursdays',
-    badge: 'JAMB prep',
-    ctaLabel: 'Join on WhatsApp',
-    ctaUrl: 'https://chat.whatsapp.com/TalmaJambChemistry',
+      'The department is hiring a lecturer to teach programming, databases and introductory AI. A master’s degree and published research are an advantage.',
+    location: 'Port Harcourt, Rivers · Full-time',
+    badge: 'Lecturer role',
+    ctaLabel: 'View vacancy',
+    ctaUrl: 'https://example.com/jobs/riverside-lecturer-computer-science',
   },
   {
-    id: 'teaching-physics-simple',
+    id: 'teaching-waec-maths-tutor',
     kind: 'teaching',
-    title: 'Physics Made Simple',
-    subtitle: 'Kofi Mensah · IGCSE & WASSCE',
+    title: 'WAEC Mathematics Tutor',
+    subtitle: 'Bright Future Academy',
     description:
-      'Motion, electricity and waves explained with demonstrations and past-paper walkthroughs.',
-    location: 'Online · Self-paced + live Q&A',
-    badge: 'New cohort',
-    ctaLabel: 'Join on WhatsApp',
-    ctaUrl: 'https://chat.whatsapp.com/TalmaPhysicsMadeSimple',
+      'Weekend revision tutor wanted for a small WAEC cohort. Run exam-focused algebra, geometry and statistics clinics with past-question walkthroughs.',
+    location: 'Lekki, Lagos · Part-time',
+    badge: 'Part-time',
+    ctaLabel: 'Apply now',
+    ctaUrl: 'https://example.com/jobs/bright-future-waec-maths-tutor',
   },
 ]
