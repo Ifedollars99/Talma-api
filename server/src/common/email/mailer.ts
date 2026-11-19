@@ -19,7 +19,7 @@ export interface SendMailInput {
 
 export interface MailResult {
   delivered: boolean
-  provider: 'resend' | 'smtp' | 'ethereal' | 'console'
+  provider: 'resend' | 'brevo' | 'smtp' | 'ethereal' | 'console'
   id?: string
   /** Ethereal only: a private web page showing the delivered test message. */
   previewUrl?: string
@@ -38,6 +38,12 @@ export function getEmailProvider(): Provider {
   if (env.EMAIL_PROVIDER === 'resend') {
     if (env.RESEND_API_KEY.trim()) return 'resend'
     logger.warn('EMAIL_PROVIDER is "resend" but RESEND_API_KEY is empty. Falling back to console.')
+    return 'console'
+  }
+
+  if (env.EMAIL_PROVIDER === 'brevo') {
+    if (env.BREVO_API_KEY.trim()) return 'brevo'
+    logger.warn('EMAIL_PROVIDER is "brevo" but BREVO_API_KEY is empty. Falling back to console.')
     return 'console'
   }
 
@@ -82,6 +88,8 @@ export function getEmailStatus(): {
   configured: boolean
   from: string
   replyTo?: string
+  /** Safe next step when no provider is configured. */
+  hint?: string
 } {
   const provider = getEmailProvider()
   return {
@@ -89,6 +97,11 @@ export function getEmailStatus(): {
     configured: provider !== 'console',
     from: env.MAIL_FROM,
     ...(env.MAIL_REPLY_TO.trim() ? { replyTo: env.MAIL_REPLY_TO } : {}),
+    ...(provider === 'console'
+      ? {
+          hint: 'No email provider is configured. Set BREVO_API_KEY (works on Render free) or RESEND_API_KEY / SMTP_HOST.',
+        }
+      : {}),
   }
 }
 
@@ -105,12 +118,89 @@ function getSmtpTransport(): Transporter {
       host: env.SMTP_HOST,
       port: env.SMTP_PORT,
       secure: env.SMTP_SECURE,
+      // Fail in seconds instead of hanging when a host blocks SMTP ports
+      // (Render's free tier, Railway, etc.).
+      connectionTimeout: 15_000,
+      greetingTimeout: 15_000,
+      socketTimeout: 20_000,
       ...(env.SMTP_USER.trim()
         ? { auth: { user: env.SMTP_USER, pass: env.SMTP_PASS } }
         : {}),
     })
   }
   return smtpTransport
+}
+
+/** Splits `Talma <hello@example.com>` into a Brevo sender object. */
+function parseMailAddress(value: string): { email: string; name?: string } {
+  const trimmed = value.trim()
+  const match = trimmed.match(/^(.*?)\s*<([^>]+)>\s*$/)
+  const email = match?.[2]?.trim()
+  if (match && email) {
+    const name = (match[1] ?? '').replace(/^["']|["']$/g, '').trim()
+    return { email, ...(name ? { name } : {}) }
+  }
+  return { email: trimmed }
+}
+
+/**
+ * Brevo transactional email API. Unlike SMTP, this travels over HTTPS on port
+ * 443, so it works on hosts that block outbound mail ports.
+ */
+async function sendWithBrevo(input: SendMailInput): Promise<MailResult> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 15_000)
+
+  try {
+    const sender = parseMailAddress(env.MAIL_FROM)
+    const replyTo = (input.replyTo ?? env.MAIL_REPLY_TO).trim()
+
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': env.BREVO_API_KEY.trim(),
+        'content-type': 'application/json',
+        accept: 'application/json',
+      },
+      body: JSON.stringify({
+        sender,
+        to: [{ email: input.to }],
+        subject: input.subject,
+        htmlContent: input.html ?? input.text,
+        textContent: input.text,
+        ...(replyTo ? { replyTo: parseMailAddress(replyTo) } : {}),
+      }),
+      signal: controller.signal,
+    })
+
+    if (!response.ok) {
+      const raw = await response.text().catch(() => '')
+      let message = `Brevo rejected the email (HTTP ${response.status})`
+      try {
+        const parsed = JSON.parse(raw) as { message?: string; code?: string }
+        if (parsed.message) message = parsed.message
+      } catch {
+        if (raw.trim()) message = raw.trim().slice(0, 300)
+      }
+      logger.error(
+        { status: response.status, message, to: input.to, subject: input.subject },
+        'Brevo rejected the email',
+      )
+      return { delivered: false, provider: 'brevo', error: message }
+    }
+
+    const data = (await response.json().catch(() => null)) as
+      | { messageId?: string }
+      | null
+
+    return {
+      delivered: true,
+      provider: 'brevo',
+      ...(data?.messageId ? { id: data.messageId } : {}),
+    }
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 async function sendWithResend(input: SendMailInput): Promise<MailResult> {
@@ -216,6 +306,7 @@ export async function sendMail(input: SendMailInput): Promise<MailResult> {
 
   try {
     if (provider === 'resend') return await sendWithResend(input)
+    if (provider === 'brevo') return await sendWithBrevo(input)
     if (provider === 'smtp') return await sendWithSmtp(input)
     return await sendWithEthereal(input)
   } catch (caught) {
@@ -236,10 +327,18 @@ export async function sendMail(input: SendMailInput): Promise<MailResult> {
       { err: error, provider, to: input.to, subject: input.subject },
       'Could not send email',
     )
+
+    const message =
+      error instanceof Error && error.name === 'AbortError'
+        ? `${provider} did not respond within 15 seconds`
+        : error instanceof Error
+          ? error.message
+          : undefined
+
     return {
       delivered: false,
       provider,
-      ...(error instanceof Error ? { error: error.message } : {}),
+      ...(message ? { error: message } : {}),
     }
   }
 }

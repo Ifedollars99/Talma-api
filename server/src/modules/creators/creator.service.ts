@@ -219,7 +219,9 @@ export async function requestCreatorVerification(
     ...(!env.isProduction && mail.previewUrl && previewMode
       ? { previewUrl: mail.previewUrl }
       : {}),
-    ...(!env.isProduction && mail.error ? { error: mail.error } : {}),
+    // The endpoint is authenticated, so the account owner can safely see why
+    // their code email failed (for example a blocked SMTP port or bad key).
+    ...(mail.error ? { error: mail.error.slice(0, 300) } : {}),
     ...(showDevCode ? { devCode: code } : {}),
   }
 }

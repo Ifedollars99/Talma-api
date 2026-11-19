@@ -192,8 +192,9 @@ dashboard is not empty on a fresh install. Re-running the seed never overwrites 
 | `REFRESH_COOKIE_SECURE` | `false` | Set to `true` behind HTTPS in production. |
 | `REFRESH_COOKIE_SAMESITE` | `lax` | `lax` / `strict` / `none`. |
 | `AUTH_REQUIRE_EMAIL_VERIFICATION` | `false` | Require a confirmed email address before signing in. |
-| `EMAIL_PROVIDER` | `auto` | `auto` / `resend` / `smtp` / `ethereal` / `console`. `auto` prefers Resend, then SMTP, then Ethereal in development. |
-| `RESEND_API_KEY` | — | Resend API key. Recommended for production email. |
+| `EMAIL_PROVIDER` | `auto` | `auto` / `resend` / `brevo` / `smtp` / `ethereal` / `console`. `auto` prefers Resend, then Brevo, then SMTP, then Ethereal in development. |
+| `RESEND_API_KEY` | — | Resend API key. Requires a verified sending domain. |
+| `BREVO_API_KEY` | — | Brevo API key. Recommended on hosts that block outbound SMTP (Render free tier, Railway free/trial). Sends over HTTPS; verify the sender email, no domain required. |
 | `MAIL_FROM` | `Talma <onboarding@resend.dev>` | Sender shown in inboxes. Use a verified domain in production. |
 | `MAIL_REPLY_TO` | — | Optional reply-to address for support replies. |
 | `SMTP_HOST` | — | SMTP server hostname when using `EMAIL_PROVIDER=smtp`. |
@@ -288,12 +289,35 @@ The previews are written to `server/email-previews/`.
 
 If you prefer SMTP, set `EMAIL_PROVIDER=smtp` and fill in `SMTP_HOST`, `SMTP_PORT`,
 `SMTP_USER` and `SMTP_PASS`. In development, `auto` falls back to **Ethereal** when
-no Resend or SMTP credentials are present: emails are really sent to a throwaway
+no provider credentials are present: emails are really sent to a throwaway
 inbox and the API logs a preview URL. The creator verification modal shows that
 preview link instead of exposing the code. A code is returned only when no
 provider is configured at all, so local testing still works. In test and
 production, `auto` falls back to the console only when no provider is configured;
-set Resend or SMTP before deploying so real users can receive mail.
+set a provider before deploying so real users can receive mail.
+
+> **Render free tier:** Render blocks outbound traffic to SMTP ports `25`, `465`
+> and `587`, so Gmail/SMTP email cannot work on a free service — it fails almost
+> immediately. Use `EMAIL_PROVIDER=brevo` with a `BREVO_API_KEY` (HTTPS, no
+> domain needed), or upgrade the Render service to a paid instance type.
+
+**Brevo setup (free, no domain):**
+
+1. Create an account at [brevo.com](https://www.brevo.com).
+2. Add and verify your sender email under **Senders, Domains & IPs → Senders**.
+   Confirm the verification message in that inbox.
+3. Create an API key under **SMTP & API → API Keys**.
+4. Set these on your host (for example Render → Environment):
+
+```env
+EMAIL_PROVIDER=brevo
+BREVO_API_KEY=xkeysib-...
+MAIL_FROM="Talma <your-verified-sender@example.com>"
+MAIL_REPLY_TO=your-verified-sender@example.com
+```
+
+After deploying, open `https://<your-api>/api/health` and confirm
+`"email": { "provider": "brevo", "configured": true }`.
 
 ---
 
@@ -676,7 +700,9 @@ npm run build
 1. **API** — deploy `server/` to any Node host (Render, Railway, Fly.io, a VPS…). Set every
    variable from `server/.env.example`, use a `MONGODB_URI` pointing at Atlas or a managed
    MongoDB, and set `REFRESH_COOKIE_SECURE=true`, `NODE_ENV=production` and
-   `CORS_ORIGINS=https://your-frontend-domain`.
+   `CORS_ORIGINS=https://your-frontend-domain`. **On Render's free tier, use
+   `EMAIL_PROVIDER=brevo`** — Render blocks outbound SMTP ports, so Gmail/SMTP email cannot work
+   there. Check `https://<your-api>/api/health` to confirm the email provider.
 2. **Web client** — build with `npm run build --workspace client` and serve `client/dist/`.
 3. **Routing** — the client uses history routing, so the static host must rewrite unknown paths to
    `index.html`.
@@ -697,7 +723,7 @@ npm run build
 | **Cloudflare Stream** | Optional | Private paid video hosting. Set `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_STREAM_API_TOKEN`, `CLOUDFLARE_STREAM_CUSTOMER_CODE` and the allowed origins. The browser uploads directly with tus; playback uses short-lived signed tokens locked to Talma's domains. |
 | **YouTube Data API v3** | Optional | Legacy fallback for existing catalogue entries and deployments without Cloudflare. Set the OAuth client id/secret, `YOUTUBE_REFRESH_TOKEN` and `YOUTUBE_CHANNEL_ID`. Unlisted YouTube links are permanent, so new paid lessons should use Stream. |
 | **Wikimedia Commons** | Optional | The landing page hotlinks campus photographs from Wikimedia Commons. |
-| **Email delivery** | Optional | Resend is recommended for production; SMTP is supported. Development falls back to an Ethereal preview inbox when no credentials are set. Configure `RESEND_API_KEY`/`MAIL_FROM` or SMTP before real users need verification or reset emails. |
+| **Email delivery** | Optional | Brevo is recommended when the host blocks SMTP (Render free tier, Railway free/trial); Resend and SMTP are also supported. Development falls back to an Ethereal preview inbox when no credentials are set. Configure `BREVO_API_KEY`, `RESEND_API_KEY` or SMTP before real users need verification or reset emails. |
 | **ArcGIS imagery** | Optional | Satellite tiles for the campus map. |
 
 ---

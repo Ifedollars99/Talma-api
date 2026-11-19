@@ -25,7 +25,11 @@ apiRouter.get('/health', (_req, res) => {
     status: 'ok',
     service: 'talma-api',
     uptime: process.uptime(),
-    email: { provider: email.provider, configured: email.configured },
+    email: {
+      provider: email.provider,
+      configured: email.configured,
+      ...(email.hint ? { hint: email.hint } : {}),
+    },
     // Safe diagnostics: booleans only, never the credential values.
     youtube: {
       configured: env.youtubeConfigured,

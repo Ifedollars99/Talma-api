@@ -38,11 +38,19 @@ const envSchema = z.object({
   REFRESH_COOKIE_SAMESITE: z.enum(['lax', 'strict', 'none']).default('lax'),
   AUTH_REQUIRE_EMAIL_VERIFICATION: booleanish.default(false),
   /**
-   * Transactional email. `auto` picks Resend when a key is present, then SMTP,
-   * and finally a console logger for local development.
+   * Transactional email. `auto` picks Resend when a key is present, then
+   * Brevo, then SMTP, and finally a console logger for local development.
+   *
+   * Brevo is the recommended provider on hosts that block outbound SMTP
+   * (Render's free tier, Railway's free/trial plans, etc.) because its API
+   * uses HTTPS on port 443.
    */
-  EMAIL_PROVIDER: z.enum(['auto', 'resend', 'smtp', 'ethereal', 'console']).default('auto'),
+  EMAIL_PROVIDER: z
+    .enum(['auto', 'resend', 'brevo', 'smtp', 'ethereal', 'console'])
+    .default('auto'),
   RESEND_API_KEY: z.string().default(''),
+  /** Brevo transactional email API key (starts with `xkeysib-`). */
+  BREVO_API_KEY: z.string().default(''),
   MAIL_FROM: z.string().min(3).default('Talma <onboarding@resend.dev>'),
   MAIL_REPLY_TO: z.string().default(''),
   SMTP_HOST: z.string().default(''),
@@ -182,24 +190,29 @@ export const env = {
     raw.EMAIL_PROVIDER === 'auto'
       ? raw.RESEND_API_KEY.trim().length > 0
         ? ('resend' as const)
-        : raw.SMTP_HOST.trim().length > 0
-          ? ('smtp' as const)
-          : raw.NODE_ENV === 'development'
-            ? ('ethereal' as const)
-            : ('console' as const)
+        : raw.BREVO_API_KEY.trim().length > 0
+          ? ('brevo' as const)
+          : raw.SMTP_HOST.trim().length > 0
+            ? ('smtp' as const)
+            : raw.NODE_ENV === 'development'
+              ? ('ethereal' as const)
+              : ('console' as const)
       : raw.EMAIL_PROVIDER,
   emailConfigured:
     raw.EMAIL_PROVIDER === 'resend'
       ? raw.RESEND_API_KEY.trim().length > 0
-      : raw.EMAIL_PROVIDER === 'smtp'
-        ? raw.SMTP_HOST.trim().length > 0
-        : raw.EMAIL_PROVIDER === 'ethereal'
-          ? true
-          : raw.EMAIL_PROVIDER === 'auto'
-            ? raw.RESEND_API_KEY.trim().length > 0 ||
-              raw.SMTP_HOST.trim().length > 0 ||
-              raw.NODE_ENV === 'development'
-            : false,
+      : raw.EMAIL_PROVIDER === 'brevo'
+        ? raw.BREVO_API_KEY.trim().length > 0
+        : raw.EMAIL_PROVIDER === 'smtp'
+          ? raw.SMTP_HOST.trim().length > 0
+          : raw.EMAIL_PROVIDER === 'ethereal'
+            ? true
+            : raw.EMAIL_PROVIDER === 'auto'
+              ? raw.RESEND_API_KEY.trim().length > 0 ||
+                raw.BREVO_API_KEY.trim().length > 0 ||
+                raw.SMTP_HOST.trim().length > 0 ||
+                raw.NODE_ENV === 'development'
+              : false,
   youtubeConfigured:
     raw.YOUTUBE_CLIENT_ID.trim().length > 0 &&
     raw.YOUTUBE_CLIENT_SECRET.trim().length > 0 &&
