@@ -25,10 +25,15 @@ export const creatorVerificationSchema = z.object({
     .trim()
     .regex(/^\d{6}$/, 'Enter the six-digit code from your email'),
   /**
-   * New verifications must save a WhatsApp group/community link. It is optional
-   * in the body because an existing profile link may already be on the account.
+   * Optional for compatibility: sending the link with the code finalises the
+   * account immediately. The app normally confirms the code first and sends the
+   * link to `POST /verify/whatsapp`.
    */
   whatsappUrl: whatsappGroupUrlSchema.optional(),
+})
+
+export const creatorWhatsappSchema = z.object({
+  whatsappUrl: whatsappGroupUrlSchema,
 })
 
 export const creatorStatusQuerySchema = z.object({

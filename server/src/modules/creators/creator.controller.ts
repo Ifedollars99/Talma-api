@@ -30,12 +30,14 @@ export async function apply(req: Request, res: Response): Promise<void> {
 export async function requestVerification(req: Request, res: Response): Promise<void> {
   const result = await creatorService.requestCreatorVerification(req.userId as string)
   res.json({
-    message: 'We sent a six-digit code to your email address.',
+    message: result.delivered
+      ? 'We sent a six-digit code to your email address.'
+      : 'The email could not be delivered. Use the on-screen instructions to continue.',
     ...result,
   })
 }
 
-/** POST /api/creators/verify/confirm — upgrades the account to a creator. */
+/** POST /api/creators/verify/confirm — confirms the emailed six-digit code. */
 export async function confirmVerification(req: Request, res: Response): Promise<void> {
   const { code, whatsappUrl } = req.body as { code: string; whatsappUrl?: string }
   const result = await creatorService.confirmCreatorVerification(
@@ -43,6 +45,13 @@ export async function confirmVerification(req: Request, res: Response): Promise<
     code,
     whatsappUrl,
   )
+  res.json(result)
+}
+
+/** POST /api/creators/verify/whatsapp — finalises verification with the group link. */
+export async function completeWhatsApp(req: Request, res: Response): Promise<void> {
+  const { whatsappUrl } = req.body as { whatsappUrl: string }
+  const result = await creatorService.completeCreatorWhatsApp(req.userId as string, whatsappUrl)
   res.json(result)
 }
 

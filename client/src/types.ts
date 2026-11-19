@@ -11,6 +11,8 @@ export interface User {
   role: UserRole
   creatorStatus: CreatorStatus
   emailVerified: boolean
+  /** True once the creator email code has been confirmed. */
+  creatorEmailVerified?: boolean
   region: string
   state: string
   language: string
@@ -405,11 +407,15 @@ export interface CreatorVerificationRequest {
   devCode?: string
   /** Ethereal only: a development inbox preview of the sent email. */
   previewUrl?: string
+  /** Development only: why the configured provider refused the message. */
+  error?: string
 }
 
 export interface CreatorVerificationResult {
   user: User
   message: string
+  /** True when the email code is confirmed and the WhatsApp link is still needed. */
+  needsWhatsappUrl?: boolean
 }
 
 export type AdvertisementKind = 'school' | 'teaching'

@@ -3,7 +3,7 @@ import request from 'supertest'
 import { app, registerUser } from './helpers.js'
 
 describe('Creator verification and public profiles', () => {
-  it('verifies an educator with the emailed code and saves their WhatsApp link', async () => {
+  it('verifies the email code first, then completes with the WhatsApp link', async () => {
     const user = await registerUser({
       username: 'FutureCreator',
       email: 'future.creator@example.com',
@@ -30,19 +30,23 @@ describe('Creator verification and public profiles', () => {
       .send({ code: '000000' })
       .expect(400)
 
-    // The code is correct here, but the WhatsApp link is now mandatory.
-    const missingLink = await request(app)
+    // Step 1: the correct code confirms the email but does not finish verification.
+    const emailStep = await request(app)
       .post('/api/creators/verify/confirm')
       .set('Authorization', `Bearer ${user.accessToken}`)
       .send({ code: requested.body.devCode })
-      .expect(400)
-    expect(missingLink.body.error.message).toContain('WhatsApp')
+      .expect(200)
 
+    expect(emailStep.body.needsWhatsappUrl).toBe(true)
+    expect(emailStep.body.user.emailVerified).toBe(true)
+    expect(emailStep.body.user.creatorStatus).not.toBe('approved')
+
+    // Step 2: the WhatsApp link completes verification.
     const whatsappUrl = 'https://chat.whatsapp.com/FutureCreatorGroup'
     const confirmed = await request(app)
-      .post('/api/creators/verify/confirm')
+      .post('/api/creators/verify/whatsapp')
       .set('Authorization', `Bearer ${user.accessToken}`)
-      .send({ code: requested.body.devCode, whatsappUrl })
+      .send({ whatsappUrl })
       .expect(200)
 
     expect(confirmed.body.user.creatorStatus).toBe('approved')
@@ -56,6 +60,22 @@ describe('Creator verification and public profiles', () => {
     expect(profile.body.posts).toHaveLength(1)
     expect(profile.body.posts[0].authorRole).toBe('creator')
     expect(profile.body.posts[0].authorUsername).toBe('FutureCreator')
+  })
+
+  it('requires the email code before the WhatsApp link can finish verification', async () => {
+    const user = await registerUser({
+      username: 'EagerEducator',
+      email: 'eager.educator@example.com',
+      role: 'creator',
+    })
+
+    const response = await request(app)
+      .post('/api/creators/verify/whatsapp')
+      .set('Authorization', `Bearer ${user.accessToken}`)
+      .send({ whatsappUrl: 'https://chat.whatsapp.com/EagerEducatorGroup' })
+      .expect(400)
+
+    expect(response.body.error.message).toContain('email')
   })
 
   it('does not let Student accounts start educator verification', async () => {
@@ -85,10 +105,16 @@ describe('Creator verification and public profiles', () => {
       .set('Authorization', `Bearer ${user.accessToken}`)
       .expect(200)
 
-    const response = await request(app)
+    await request(app)
       .post('/api/creators/verify/confirm')
       .set('Authorization', `Bearer ${user.accessToken}`)
-      .send({ code: requested.body.devCode, whatsappUrl: 'https://example.com/not-whatsapp' })
+      .send({ code: requested.body.devCode })
+      .expect(200)
+
+    const response = await request(app)
+      .post('/api/creators/verify/whatsapp')
+      .set('Authorization', `Bearer ${user.accessToken}`)
+      .send({ whatsappUrl: 'https://example.com/not-whatsapp' })
       .expect(422)
 
     expect(response.body.error.code).toBe('VALIDATION_ERROR')

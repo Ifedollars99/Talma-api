@@ -8,6 +8,7 @@ import {
   creatorIdParams,
   creatorStatusQuerySchema,
   creatorVerificationSchema,
+  creatorWhatsappSchema,
   rejectCreatorSchema,
 } from './creator.validation.js'
 
@@ -23,6 +24,12 @@ creatorsRouter.post(
   writeLimiter,
   validate({ body: creatorVerificationSchema }),
   controller.confirmVerification,
+)
+creatorsRouter.post(
+  '/verify/whatsapp',
+  writeLimiter,
+  validate({ body: creatorWhatsappSchema }),
+  controller.completeWhatsApp,
 )
 creatorsRouter.post(
   '/apply',

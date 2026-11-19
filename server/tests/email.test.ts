@@ -13,7 +13,7 @@ describe('Transactional email templates', () => {
       expiresMinutes: 10,
     })
 
-    expect(email.subject).toBe('Verify your Talma creator account')
+    expect(email.subject).toBe('Your Talma verification code')
     expect(email.html).toContain('123456')
     expect(email.html).toContain('Talma')
     expect(email.html).toContain('This code expires in 10 minutes')

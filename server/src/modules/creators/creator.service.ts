@@ -10,6 +10,7 @@ import {
   UserModel,
   toPublicUser,
   type PublicUser,
+  type User,
 } from '../users/user.model.js'
 import {
   createSubaccount,
@@ -175,7 +176,13 @@ export async function applyAsCreator(
  */
 export async function requestCreatorVerification(
   userId: string,
-): Promise<{ email: string; delivered: boolean; devCode?: string; previewUrl?: string }> {
+): Promise<{
+  email: string
+  delivered: boolean
+  devCode?: string
+  previewUrl?: string
+  error?: string
+}> {
   const user = await UserModel.findById(userId)
   if (!user) {
     throw AppError.notFound('Account not found')
@@ -212,48 +219,23 @@ export async function requestCreatorVerification(
     ...(!env.isProduction && mail.previewUrl && previewMode
       ? { previewUrl: mail.previewUrl }
       : {}),
+    ...(!env.isProduction && mail.error ? { error: mail.error } : {}),
     ...(showDevCode ? { devCode: code } : {}),
   }
 }
 
-/** Confirms the emailed code and upgrades the account to a verified creator. */
-export async function confirmCreatorVerification(
-  userId: string,
-  code: string,
-  whatsappUrl?: string,
-): Promise<{ user: PublicUser; message: string }> {
-  const user = await UserModel.findById(userId).select(
-    '+creatorVerificationCodeHash +creatorVerificationExpires',
-  )
-  if (!user) {
-    throw AppError.notFound('Account not found')
-  }
+export interface CreatorVerificationResult {
+  user: PublicUser
+  message: string
+  /** True when the email code is confirmed and the WhatsApp link is still needed. */
+  needsWhatsappUrl?: boolean
+}
 
-  if (user.role === 'user' || user.role === 'student') {
-    throw AppError.forbidden(
-      'Student accounts cannot be verified as educators. Sign up with an Educator account to share lessons.',
-    )
-  }
-
-  if (
-    !user.creatorVerificationCodeHash ||
-    !user.creatorVerificationExpires ||
-    user.creatorVerificationExpires.getTime() <= Date.now()
-  ) {
-    throw AppError.badRequest('That code is invalid or has expired. Request a new one.')
-  }
-
-  if (user.creatorVerificationCodeHash !== hashOpaqueToken(code)) {
-    throw AppError.badRequest('That code is not correct. Please check it and try again.')
-  }
-
-  const link = (whatsappUrl ?? user.whatsappUrl ?? '').trim()
-  if (!isWhatsAppGroupUrl(link)) {
-    throw AppError.badRequest(
-      'Add your WhatsApp group or community link before you finish verifying.',
-    )
-  }
-
+/** Saves the WhatsApp link, approves the educator and backfills their posts. */
+async function finalizeCreatorVerification(
+  user: User,
+  link: string,
+): Promise<CreatorVerificationResult> {
   user.creatorStatus = 'approved'
   if (user.role !== 'admin') {
     user.role = 'creator'
@@ -285,6 +267,109 @@ export async function confirmCreatorVerification(
     user: toPublicUser(user),
     message: 'Welcome to being a creator! Your WhatsApp link is live on Home.',
   }
+}
+
+/**
+ * Confirms the emailed code and marks the email step complete. If a WhatsApp
+ * link is supplied in the same request the account is finalised immediately
+ * (legacy clients); otherwise the caller sends it to `completeCreatorWhatsApp`.
+ */
+export async function confirmCreatorVerification(
+  userId: string,
+  code: string,
+  whatsappUrl?: string,
+): Promise<CreatorVerificationResult> {
+  const user = await UserModel.findById(userId).select(
+    '+creatorVerificationCodeHash +creatorVerificationExpires',
+  )
+  if (!user) {
+    throw AppError.notFound('Account not found')
+  }
+
+  if (user.role === 'user' || user.role === 'student') {
+    throw AppError.forbidden(
+      'Student accounts cannot be verified as educators. Sign up with an Educator account to share lessons.',
+    )
+  }
+
+  if (
+    !user.creatorVerificationCodeHash ||
+    !user.creatorVerificationExpires ||
+    user.creatorVerificationExpires.getTime() <= Date.now()
+  ) {
+    throw AppError.badRequest('That code is invalid or has expired. Request a new one.')
+  }
+
+  if (user.creatorVerificationCodeHash !== hashOpaqueToken(code)) {
+    throw AppError.badRequest('That code is not correct. Please check it and try again.')
+  }
+
+  const link = (whatsappUrl ?? '').trim()
+  if (link && !isWhatsAppGroupUrl(link)) {
+    throw AppError.badRequest(
+      'Add your WhatsApp group or community link before you finish verifying.',
+    )
+  }
+
+  user.emailVerified = true
+  user.creatorEmailVerifiedAt = new Date()
+  user.creatorVerificationCodeHash = undefined
+  user.creatorVerificationExpires = undefined
+  await user.save()
+
+  if (link) {
+    return finalizeCreatorVerification(user, link)
+  }
+
+  return {
+    user: toPublicUser(user),
+    message: 'Email confirmed. Add your WhatsApp group or community link to finish verification.',
+    needsWhatsappUrl: true,
+  }
+}
+
+/**
+ * Second verification step: the email code is already confirmed, so saving a
+ * valid WhatsApp group link completes the educator verification.
+ */
+export async function completeCreatorWhatsApp(
+  userId: string,
+  whatsappUrl: string,
+): Promise<CreatorVerificationResult> {
+  const user = await UserModel.findById(userId)
+  if (!user) {
+    throw AppError.notFound('Account not found')
+  }
+
+  if (user.role === 'user' || user.role === 'student') {
+    throw AppError.forbidden(
+      'Student accounts cannot be verified as educators. Sign up with an Educator account to share lessons.',
+    )
+  }
+
+  const link = whatsappUrl.trim()
+  if (!isWhatsAppGroupUrl(link)) {
+    throw AppError.badRequest(
+      'Add your WhatsApp group or community link before you finish verifying.',
+    )
+  }
+
+  if (user.creatorStatus === 'approved') {
+    user.whatsappUrl = link
+    await user.save()
+    return {
+      user: toPublicUser(user),
+      message: 'Your WhatsApp group link has been updated.',
+    }
+  }
+
+  if (!user.creatorEmailVerifiedAt) {
+    throw AppError.badRequest(
+      'Confirm the six-digit code sent to your email before adding your WhatsApp link.',
+    )
+  }
+
+  return finalizeCreatorVerification(user, link)
 }
 
 export async function getMyCreatorProfile(userId: string): Promise<CreatorDto | null> {

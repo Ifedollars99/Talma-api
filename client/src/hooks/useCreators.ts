@@ -22,12 +22,24 @@ export function useRequestCreatorVerification() {
   })
 }
 
-/** Confirms the emailed code and upgrades the account to a creator. */
+/** Confirms the emailed code and marks the email step complete. */
 export function useConfirmCreatorVerification() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: { code: string; whatsappUrl?: string }) =>
+    mutationFn: (input: { code: string }) =>
       api.post<CreatorVerificationResult>('/creators/verify/confirm', input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: creatorKeys.all })
+    },
+  })
+}
+
+/** Saves the WhatsApp group link and completes educator verification. */
+export function useCompleteCreatorWhatsApp() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { whatsappUrl: string }) =>
+      api.post<CreatorVerificationResult>('/creators/verify/whatsapp', input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: creatorKeys.all })
     },

@@ -169,7 +169,7 @@ export interface RenderedEmail {
   html: string
 }
 
-/** The six-digit creator verification email. */
+/** The six-digit creator verification email. Kept link-free and minimal. */
 export function creatorVerificationEmail(input: {
   username: string
   code: string
@@ -178,64 +178,68 @@ export function creatorVerificationEmail(input: {
   const username = input.username.trim()
   const expiresMinutes = input.expiresMinutes ?? 10
   const safeCode = escapeHtml(input.code)
+  const safeName = escapeHtml(username)
 
-  const html = renderLayout({
-    preheader: `Your Talma verification code is ${input.code}. It expires in ${expiresMinutes} minutes.`,
-    eyebrow: 'Creator verification',
-    heading: 'Confirm your creator account',
-    intro: `Hi ${username}, enter this code in the Talma app to verify your account and unlock video and media uploads.`,
-    content: `
-      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:26px 0 0">
-        <tr>
-          <td align="center" style="border-radius:16px;background:${BRAND.ink};padding:24px 18px">
-            <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.55);padding-bottom:10px">
-              Your verification code
-            </div>
-            <div style="font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:36px;line-height:44px;font-weight:700;letter-spacing:10px;color:${BRAND.gold};padding-left:10px">
-              ${safeCode}
-            </div>
-          </td>
-        </tr>
-      </table>
-
-      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:18px 0 0">
-        <tr>
-          <td style="border-left:3px solid ${BRAND.gold};border-radius:0 12px 12px 0;background:${BRAND.goldSoft};padding:14px 18px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:14px;line-height:22px;color:#6b5400">
-            <strong>This code expires in ${expiresMinutes} minutes.</strong>
-            For your security, never share it with anyone. Talma will never ask you for this code outside the app.
-          </td>
-        </tr>
-      </table>
-
-      <p style="margin:22px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:15px;line-height:24px;color:${BRAND.body}">
-        Open Talma, go to the verification screen and enter the six digits above. If you did not request this, you can safely ignore this email — your account will remain unchanged.
-      </p>
-    `,
-    button: {
-      label: 'Open Talma',
-      href: appUrl('/mycamp'),
-    },
-    footnote:
-      'You are receiving this because creator verification was requested for your Talma account. If this was not you, no action is needed.',
-  })
+  // Deliberately no buttons, images or external links. Transactional code
+  // emails deliver best when they contain nothing a spam filter can mistake
+  // for marketing, and a localhost link would be an especially strong signal.
+  const html = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="x-apple-disable-message-reformatting" />
+    <title>Your Talma verification code</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f4f6f4;-webkit-text-size-adjust:100%">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f4f6f4">
+      <tr>
+        <td align="center" style="padding:32px 16px">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:520px;background:#ffffff;border:1px solid #e6e9e6;border-radius:16px">
+            <tr>
+              <td style="padding:32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#0a0a0a">
+                <div style="font-size:18px;font-weight:700;letter-spacing:-0.02em">Talma</div>
+                <p style="margin:24px 0 0;font-size:16px;line-height:26px;color:#4d554d">Hi ${safeName},</p>
+                <p style="margin:12px 0 0;font-size:16px;line-height:26px;color:#4d554d">
+                  Use the verification code below to confirm your email address for Talma.
+                </p>
+                <div style="margin:24px 0 0;padding:22px 22px 22px 32px;border-radius:12px;background:#fdf5d7;text-align:center;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:34px;line-height:42px;font-weight:700;letter-spacing:10px;color:#0a0a0a">
+                  ${safeCode}
+                </div>
+                <p style="margin:18px 0 0;font-size:14px;line-height:22px;color:#4d554d">
+                  <strong>This code expires in ${expiresMinutes} minutes.</strong>
+                  Enter it in the Talma app. Never share this code with anyone.
+                </p>
+                <p style="margin:18px 0 0;font-size:14px;line-height:22px;color:#4d554d">
+                  If you did not request this code, you can safely ignore this email.
+                </p>
+                <p style="margin:28px 0 0;padding-top:18px;border-top:1px solid #e6e9e6;font-size:12px;line-height:20px;color:#7b857b">
+                  Talma · Social learning for African students
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`
 
   const text = [
     `Hi ${username},`,
     '',
-    `Your Talma creator verification code is: ${input.code}`,
+    `Your Talma verification code is: ${input.code}`,
     '',
-    `Enter this code in the Talma app to verify your account. It expires in ${expiresMinutes} minutes.`,
+    `This code expires in ${expiresMinutes} minutes. Enter it in the Talma app.`,
+    'Never share this code with anyone.',
     '',
-    'For your security, never share this code with anyone.',
-    'If you did not request it, you can safely ignore this email.',
-    '',
-    `Open Talma: ${appUrl('/mycamp')}`,
+    'If you did not request this code, you can safely ignore this email.',
     '',
     'Talma · Social learning for African students',
   ].join('\n')
 
   return {
-    subject: 'Verify your Talma creator account',
+    subject: 'Your Talma verification code',
     text,
     html,
   }

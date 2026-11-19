@@ -15,6 +15,8 @@ export interface UserDocument {
   /** One-time code sent by email to confirm a creator account. */
   creatorVerificationCodeHash?: string
   creatorVerificationExpires?: Date
+  /** When the creator email code was confirmed, before the WhatsApp link step. */
+  creatorEmailVerifiedAt?: Date
   creatorVerifiedAt?: Date
   emailVerified: boolean
   emailVerificationTokenHash?: string
@@ -78,6 +80,7 @@ const userSchema = new Schema<UserDocument>(
     },
     creatorVerificationCodeHash: { type: String, select: false },
     creatorVerificationExpires: { type: Date, select: false },
+    creatorEmailVerifiedAt: { type: Date },
     creatorVerifiedAt: { type: Date },
     emailVerified: { type: Boolean, default: false },
     emailVerificationTokenHash: { type: String, select: false },
@@ -112,6 +115,8 @@ export interface PublicUser {
   role: UserRole
   creatorStatus: CreatorStatus
   emailVerified: boolean
+  /** True once the creator email code has been confirmed. */
+  creatorEmailVerified: boolean
   region: string
   state: string
   language: string
@@ -135,6 +140,7 @@ export function toPublicUser(user: UserDocument & { _id: mongoose.Types.ObjectId
     role: user.role,
     creatorStatus: user.creatorStatus ?? 'none',
     emailVerified: user.emailVerified,
+    creatorEmailVerified: Boolean(user.creatorEmailVerifiedAt),
     region: user.region,
     state: user.state ?? '',
     language: user.language,

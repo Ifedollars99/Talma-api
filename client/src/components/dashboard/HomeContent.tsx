@@ -72,7 +72,13 @@ function SectionNav({
       aria-label="Home sections"
       className="rounded-2xl border border-[#e6e9e6] bg-white p-1.5 shadow-sm"
     >
-      <div className="flex gap-1 overflow-x-auto">
+      {/*
+        On phones the four tabs wrap into a two-column grid so every section is
+        visible without a nested horizontal scroller. That scroller was wider
+        than the screen and swallowed swipe gestures, which made the page feel
+        stuck vertically. From `sm` up the tabs sit in one wrapping row.
+      */}
+      <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap sm:gap-1">
         {SECTION_TABS.map((tab) => {
           const active = section === tab.id
           return (
@@ -81,14 +87,14 @@ function SectionNav({
               type="button"
               onClick={() => onNavigate(tab.id)}
               aria-current={active ? 'page' : undefined}
-              className={`inline-flex flex-shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors ${
+              className={`inline-flex min-h-[42px] items-center gap-2 rounded-xl px-3 py-2 text-left text-[13px] font-semibold leading-snug transition-colors sm:flex-shrink-0 sm:justify-center sm:px-3.5 sm:text-center sm:text-sm ${
                 active
                   ? 'bg-[#fdf5d7] text-[#0a0a0a] shadow-sm'
                   : 'text-[#4d554d] hover:bg-[#f7f9f7]'
               }`}
             >
-              <i className={`bi ${tab.icon}`} />
-              {tab.label}
+              <i className={`bi ${tab.icon} flex-shrink-0`} />
+              <span>{tab.label}</span>
             </button>
           )
         })}
