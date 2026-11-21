@@ -180,9 +180,9 @@ export function creatorVerificationEmail(input: {
   const safeCode = escapeHtml(input.code)
   const safeName = escapeHtml(username)
 
-  // Deliberately no buttons, images or external links. Transactional code
-  // emails deliver best when they contain nothing a spam filter can mistake
-  // for marketing, and a localhost link would be an especially strong signal.
+  // Deliberately plain: no buttons, images, cards or links. A message that
+  // looks like a personal note from a real address is far less likely to be
+  // treated as promotional or phishing than a branded HTML template.
   const html = `<!doctype html>
 <html lang="en">
   <head>
@@ -191,37 +191,19 @@ export function creatorVerificationEmail(input: {
     <meta name="x-apple-disable-message-reformatting" />
     <title>Your Talma verification code</title>
   </head>
-  <body style="margin:0;padding:0;background:#f4f6f4;-webkit-text-size-adjust:100%">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f4f6f4">
-      <tr>
-        <td align="center" style="padding:32px 16px">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:520px;background:#ffffff;border:1px solid #e6e9e6;border-radius:16px">
-            <tr>
-              <td style="padding:32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#0a0a0a">
-                <div style="font-size:18px;font-weight:700;letter-spacing:-0.02em">Talma</div>
-                <p style="margin:24px 0 0;font-size:16px;line-height:26px;color:#4d554d">Hi ${safeName},</p>
-                <p style="margin:12px 0 0;font-size:16px;line-height:26px;color:#4d554d">
-                  Use the verification code below to confirm your email address for Talma.
-                </p>
-                <div style="margin:24px 0 0;padding:22px 22px 22px 32px;border-radius:12px;background:#fdf5d7;text-align:center;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:34px;line-height:42px;font-weight:700;letter-spacing:10px;color:#0a0a0a">
-                  ${safeCode}
-                </div>
-                <p style="margin:18px 0 0;font-size:14px;line-height:22px;color:#4d554d">
-                  <strong>This code expires in ${expiresMinutes} minutes.</strong>
-                  Enter it in the Talma app. Never share this code with anyone.
-                </p>
-                <p style="margin:18px 0 0;font-size:14px;line-height:22px;color:#4d554d">
-                  If you did not request this code, you can safely ignore this email.
-                </p>
-                <p style="margin:28px 0 0;padding-top:18px;border-top:1px solid #e6e9e6;font-size:12px;line-height:20px;color:#7b857b">
-                  Talma · Social learning for African students
-                </p>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
+  <body style="margin:0;padding:0;background:#ffffff">
+    <div style="max-width:480px;margin:0 auto;padding:24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:16px;line-height:26px;color:#1a1a1a">
+      <p style="margin:0 0 16px">Hi ${safeName},</p>
+      <p style="margin:0 0 16px">Your Talma verification code is:</p>
+      <p style="margin:0 0 16px;font-family:Consolas,Menlo,'Liberation Mono',monospace;font-size:30px;line-height:38px;font-weight:700;letter-spacing:8px;color:#0a0a0a">
+        ${safeCode}
+      </p>
+      <p style="margin:0 0 16px">
+        This code expires in ${expiresMinutes} minutes. Enter it in the Talma app to confirm your email address.
+      </p>
+      <p style="margin:0 0 16px">If you did not request this code, you can safely ignore this email.</p>
+      <p style="margin:24px 0 0;color:#555555">— Talma</p>
+    </div>
   </body>
 </html>`
 

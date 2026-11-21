@@ -29,6 +29,15 @@ export interface MailResult {
 
 type Provider = MailResult['provider']
 
+/**
+ * Signals to inbox providers that this is automated transactional mail, not
+ * bulk marketing. Gmail, Outlook and others use these headers when scoring.
+ */
+const TRANSACTIONAL_HEADERS = {
+  'Auto-Submitted': 'auto-generated',
+  'X-Auto-Response-Suppress': 'All',
+} as const
+
 let resendClient: Resend | null = null
 let smtpTransport: Transporter | null = null
 let etherealTransport: Transporter | null = null
@@ -168,6 +177,7 @@ async function sendWithBrevo(input: SendMailInput): Promise<MailResult> {
         subject: input.subject,
         htmlContent: input.html ?? input.text,
         textContent: input.text,
+        headers: { ...TRANSACTIONAL_HEADERS },
         ...(replyTo ? { replyTo: parseMailAddress(replyTo) } : {}),
       }),
       signal: controller.signal,
@@ -210,6 +220,7 @@ async function sendWithResend(input: SendMailInput): Promise<MailResult> {
     subject: input.subject,
     text: input.text,
     ...(input.html ? { html: input.html } : {}),
+    headers: { ...TRANSACTIONAL_HEADERS },
     ...(input.replyTo ?? env.MAIL_REPLY_TO.trim()
       ? { replyTo: input.replyTo ?? env.MAIL_REPLY_TO }
       : {}),
@@ -238,6 +249,7 @@ async function sendWithSmtp(input: SendMailInput): Promise<MailResult> {
     subject: input.subject,
     text: input.text,
     ...(input.html ? { html: input.html } : {}),
+    headers: { ...TRANSACTIONAL_HEADERS },
     ...(input.replyTo ?? env.MAIL_REPLY_TO.trim()
       ? { replyTo: input.replyTo ?? env.MAIL_REPLY_TO }
       : {}),
@@ -258,6 +270,7 @@ async function sendWithEthereal(input: SendMailInput): Promise<MailResult> {
     subject: input.subject,
     text: input.text,
     ...(input.html ? { html: input.html } : {}),
+    headers: { ...TRANSACTIONAL_HEADERS },
     ...(input.replyTo ?? env.MAIL_REPLY_TO.trim()
       ? { replyTo: input.replyTo ?? env.MAIL_REPLY_TO }
       : {}),
