@@ -18,7 +18,8 @@
     "email:setup": "tsx src/database/emailSetup.ts",
     "email:test": "tsx src/database/emailTest.ts",
     "email:preview": "tsx src/database/emailPreview.ts",
-    "youtube:auth": "tsx src/database/youtubeAuth.ts"
+    "youtube:auth": "tsx src/database/youtubeAuth.ts",
+    "gmail:auth": "tsx src/database/gmailAuth.ts"
   },
   "dependencies": {
     "argon2": "^0.41.1",

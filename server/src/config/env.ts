@@ -39,18 +39,27 @@ const envSchema = z.object({
   AUTH_REQUIRE_EMAIL_VERIFICATION: booleanish.default(false),
   /**
    * Transactional email. `auto` picks Resend when a key is present, then
-   * Brevo, then SMTP, and finally a console logger for local development.
+   * Brevo, then the Gmail API, then SMTP, and finally a console logger for
+   * local development.
    *
-   * Brevo is the recommended provider on hosts that block outbound SMTP
-   * (Render's free tier, Railway's free/trial plans, etc.) because its API
-   * uses HTTPS on port 443.
+   * Brevo and Gmail both send over HTTPS (port 443), so they work on hosts
+   * that block outbound SMTP (Render's free tier, Railway's free/trial plans,
+   * etc.). Gmail reuses the Google OAuth client configured for YouTube and
+   * delivers from the real Gmail account, which gives the strongest
+   * authentication (SPF/DKIM/DMARC) of the free options.
    */
   EMAIL_PROVIDER: z
-    .enum(['auto', 'resend', 'brevo', 'smtp', 'ethereal', 'console'])
+    .enum(['auto', 'resend', 'brevo', 'gmail', 'smtp', 'ethereal', 'console'])
     .default('auto'),
   RESEND_API_KEY: z.string().default(''),
   /** Brevo transactional email API key (starts with `xkeysib-`). */
   BREVO_API_KEY: z.string().default(''),
+  /**
+   * Gmail API refresh token scoped to `gmail.send`. Mint it with
+   * `npm run gmail:auth --workspace server`; it uses the same client id and
+   * secret as the YouTube integration.
+   */
+  GMAIL_REFRESH_TOKEN: z.string().default(''),
   MAIL_FROM: z.string().min(3).default('Talma <onboarding@resend.dev>'),
   MAIL_REPLY_TO: z.string().default(''),
   SMTP_HOST: z.string().default(''),
@@ -186,33 +195,48 @@ export const env = {
           'application/pdf',
         ],
   paystackConfigured: raw.PAYSTACK_SECRET_KEY.trim().length > 0,
+  gmailConfigured:
+    raw.YOUTUBE_CLIENT_ID.trim().length > 0 &&
+    raw.YOUTUBE_CLIENT_SECRET.trim().length > 0 &&
+    raw.GMAIL_REFRESH_TOKEN.trim().length > 0,
   emailProvider:
     raw.EMAIL_PROVIDER === 'auto'
       ? raw.RESEND_API_KEY.trim().length > 0
         ? ('resend' as const)
         : raw.BREVO_API_KEY.trim().length > 0
           ? ('brevo' as const)
-          : raw.SMTP_HOST.trim().length > 0
-            ? ('smtp' as const)
-            : raw.NODE_ENV === 'development'
-              ? ('ethereal' as const)
-              : ('console' as const)
+          : raw.GMAIL_REFRESH_TOKEN.trim().length > 0 &&
+              raw.YOUTUBE_CLIENT_ID.trim().length > 0 &&
+              raw.YOUTUBE_CLIENT_SECRET.trim().length > 0
+            ? ('gmail' as const)
+            : raw.SMTP_HOST.trim().length > 0
+              ? ('smtp' as const)
+              : raw.NODE_ENV === 'development'
+                ? ('ethereal' as const)
+                : ('console' as const)
       : raw.EMAIL_PROVIDER,
   emailConfigured:
     raw.EMAIL_PROVIDER === 'resend'
       ? raw.RESEND_API_KEY.trim().length > 0
       : raw.EMAIL_PROVIDER === 'brevo'
         ? raw.BREVO_API_KEY.trim().length > 0
-        : raw.EMAIL_PROVIDER === 'smtp'
-          ? raw.SMTP_HOST.trim().length > 0
-          : raw.EMAIL_PROVIDER === 'ethereal'
-            ? true
-            : raw.EMAIL_PROVIDER === 'auto'
-              ? raw.RESEND_API_KEY.trim().length > 0 ||
-                raw.BREVO_API_KEY.trim().length > 0 ||
-                raw.SMTP_HOST.trim().length > 0 ||
-                raw.NODE_ENV === 'development'
-              : false,
+        : raw.EMAIL_PROVIDER === 'gmail'
+          ? raw.GMAIL_REFRESH_TOKEN.trim().length > 0 &&
+            raw.YOUTUBE_CLIENT_ID.trim().length > 0 &&
+            raw.YOUTUBE_CLIENT_SECRET.trim().length > 0
+          : raw.EMAIL_PROVIDER === 'smtp'
+            ? raw.SMTP_HOST.trim().length > 0
+            : raw.EMAIL_PROVIDER === 'ethereal'
+              ? true
+              : raw.EMAIL_PROVIDER === 'auto'
+                ? raw.RESEND_API_KEY.trim().length > 0 ||
+                  raw.BREVO_API_KEY.trim().length > 0 ||
+                  (raw.GMAIL_REFRESH_TOKEN.trim().length > 0 &&
+                    raw.YOUTUBE_CLIENT_ID.trim().length > 0 &&
+                    raw.YOUTUBE_CLIENT_SECRET.trim().length > 0) ||
+                  raw.SMTP_HOST.trim().length > 0 ||
+                  raw.NODE_ENV === 'development'
+                : false,
   youtubeConfigured:
     raw.YOUTUBE_CLIENT_ID.trim().length > 0 &&
     raw.YOUTUBE_CLIENT_SECRET.trim().length > 0 &&

@@ -21,7 +21,7 @@ console.log(`  To:       ${recipient}`)
 
 if (!status.configured) {
   console.warn(
-    '\nNo email provider is configured. Set EMAIL_PROVIDER=ethereal for a local preview, or add BREVO_API_KEY / RESEND_API_KEY / SMTP_HOST to server/.env.',
+    '\nNo email provider is configured. Set EMAIL_PROVIDER=ethereal for a local preview, or add GMAIL_REFRESH_TOKEN / BREVO_API_KEY / RESEND_API_KEY / SMTP_HOST to server/.env.',
   )
   process.exit(1)
 }

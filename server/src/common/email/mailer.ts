@@ -19,7 +19,7 @@ export interface SendMailInput {
 
 export interface MailResult {
   delivered: boolean
-  provider: 'resend' | 'brevo' | 'smtp' | 'ethereal' | 'console'
+  provider: 'resend' | 'brevo' | 'gmail' | 'smtp' | 'ethereal' | 'console'
   id?: string
   /** Ethereal only: a private web page showing the delivered test message. */
   previewUrl?: string
@@ -38,9 +38,13 @@ const TRANSACTIONAL_HEADERS = {
   'X-Auto-Response-Suppress': 'All',
 } as const
 
+const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
+const GMAIL_SEND_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send'
+
 let resendClient: Resend | null = null
 let smtpTransport: Transporter | null = null
 let etherealTransport: Transporter | null = null
+let gmailToken: { accessToken: string; expiresAt: number } | null = null
 
 /** Which provider the API will use for the next email. */
 export function getEmailProvider(): Provider {
@@ -53,6 +57,14 @@ export function getEmailProvider(): Provider {
   if (env.EMAIL_PROVIDER === 'brevo') {
     if (env.BREVO_API_KEY.trim()) return 'brevo'
     logger.warn('EMAIL_PROVIDER is "brevo" but BREVO_API_KEY is empty. Falling back to console.')
+    return 'console'
+  }
+
+  if (env.EMAIL_PROVIDER === 'gmail') {
+    if (env.gmailConfigured) return 'gmail'
+    logger.warn(
+      'EMAIL_PROVIDER is "gmail" but YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET or GMAIL_REFRESH_TOKEN is missing. Falling back to console.',
+    )
     return 'console'
   }
 
@@ -108,7 +120,7 @@ export function getEmailStatus(): {
     ...(env.MAIL_REPLY_TO.trim() ? { replyTo: env.MAIL_REPLY_TO } : {}),
     ...(provider === 'console'
       ? {
-          hint: 'No email provider is configured. Set BREVO_API_KEY (works on Render free) or RESEND_API_KEY / SMTP_HOST.',
+          hint: 'No email provider is configured. Set GMAIL_REFRESH_TOKEN (works on Render free), BREVO_API_KEY, RESEND_API_KEY or SMTP_HOST.',
         }
       : {}),
   }
@@ -213,6 +225,109 @@ async function sendWithBrevo(input: SendMailInput): Promise<MailResult> {
   }
 }
 
+/** Caches a short-lived Gmail API access token minted from the refresh token. */
+async function getGmailAccessToken(): Promise<string> {
+  if (gmailToken && gmailToken.expiresAt > Date.now() + 30_000) {
+    return gmailToken.accessToken
+  }
+
+  const response = await fetch(GOOGLE_TOKEN_URL, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: env.YOUTUBE_CLIENT_ID,
+      client_secret: env.YOUTUBE_CLIENT_SECRET,
+      refresh_token: env.GMAIL_REFRESH_TOKEN,
+      grant_type: 'refresh_token',
+    }),
+    signal: AbortSignal.timeout(15_000),
+  })
+
+  const payload = (await response.json().catch(() => null)) as {
+    access_token?: string
+    expires_in?: number
+    error?: string
+    error_description?: string
+  } | null
+
+  if (!response.ok || !payload?.access_token) {
+    const message =
+      payload?.error_description ??
+      payload?.error ??
+      `Google rejected the Gmail token (HTTP ${response.status})`
+    throw new Error(message)
+  }
+
+  gmailToken = {
+    accessToken: payload.access_token,
+    expiresAt: Date.now() + (payload.expires_in ?? 3600) * 1000,
+  }
+  return gmailToken.accessToken
+}
+
+/**
+ * Sends through the Gmail API over HTTPS. This is the best free option on
+ * hosts that block SMTP: it uses the same Google OAuth client as YouTube and
+ * sends as the real Gmail account, so SPF, DKIM and DMARC all align.
+ *
+ * Nodemailer's stream transport is used only to build the RFC 2822 message;
+ * the request itself goes to `gmail.googleapis.com`.
+ */
+async function sendWithGmail(input: SendMailInput): Promise<MailResult> {
+  const accessToken = await getGmailAccessToken()
+
+  const builder = nodemailer.createTransport({ streamTransport: true, buffer: true })
+  const built = (await builder.sendMail({
+    from: env.MAIL_FROM,
+    to: input.to,
+    subject: input.subject,
+    text: input.text,
+    ...(input.html ? { html: input.html } : {}),
+    headers: { ...TRANSACTIONAL_HEADERS },
+    ...(input.replyTo ?? env.MAIL_REPLY_TO.trim()
+      ? { replyTo: input.replyTo ?? env.MAIL_REPLY_TO }
+      : {}),
+  })) as { message?: Buffer | string }
+
+  const raw = Buffer.isBuffer(built.message)
+    ? built.message
+    : Buffer.from(String(built.message ?? ''))
+
+  const response = await fetch(GMAIL_SEND_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ raw: raw.toString('base64url') }),
+    signal: AbortSignal.timeout(15_000),
+  })
+
+  if (!response.ok) {
+    const rawError = await response.text().catch(() => '')
+    let message = `Gmail rejected the email (HTTP ${response.status})`
+    try {
+      const parsed = JSON.parse(rawError) as { error?: { message?: string } }
+      if (parsed.error?.message) message = parsed.error.message
+    } catch {
+      if (rawError.trim()) message = rawError.trim().slice(0, 300)
+    }
+    logger.error(
+      { status: response.status, message, to: input.to, subject: input.subject },
+      'Gmail rejected the email',
+    )
+    return { delivered: false, provider: 'gmail', error: message }
+  }
+
+  const data = (await response.json().catch(() => null)) as { id?: string } | null
+
+  return {
+    delivered: true,
+    provider: 'gmail',
+    ...(data?.id ? { id: data.id } : {}),
+  }
+}
+
 async function sendWithResend(input: SendMailInput): Promise<MailResult> {
   const { data, error } = await getResendClient().emails.send({
     from: env.MAIL_FROM,
@@ -292,11 +407,12 @@ async function sendWithEthereal(input: SendMailInput): Promise<MailResult> {
 }
 
 /**
- * Sends a transactional email through Resend, SMTP, or the local console.
+ * Sends a transactional email through Resend, Brevo, the Gmail API, SMTP, or
+ * the local console.
  *
  * The console provider is intentionally useful in development: verification
  * codes are logged and still returned to the app so the flow can be tested
- * without a mail account. In production, configure Resend or SMTP.
+ * without a mail account. In production, configure a real provider.
  */
 export async function sendMail(input: SendMailInput): Promise<MailResult> {
   const provider = getEmailProvider()
@@ -305,7 +421,7 @@ export async function sendMail(input: SendMailInput): Promise<MailResult> {
     if (env.isProduction) {
       logger.error(
         { to: input.to, subject: input.subject },
-        'No email provider is configured. Set RESEND_API_KEY or SMTP_HOST before going live.',
+        'No email provider is configured. Set GMAIL_REFRESH_TOKEN, BREVO_API_KEY, RESEND_API_KEY or SMTP_HOST before going live.',
       )
       return { delivered: false, provider }
     }
@@ -320,6 +436,7 @@ export async function sendMail(input: SendMailInput): Promise<MailResult> {
   try {
     if (provider === 'resend') return await sendWithResend(input)
     if (provider === 'brevo') return await sendWithBrevo(input)
+    if (provider === 'gmail') return await sendWithGmail(input)
     if (provider === 'smtp') return await sendWithSmtp(input)
     return await sendWithEthereal(input)
   } catch (caught) {

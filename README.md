@@ -192,9 +192,10 @@ dashboard is not empty on a fresh install. Re-running the seed never overwrites 
 | `REFRESH_COOKIE_SECURE` | `false` | Set to `true` behind HTTPS in production. |
 | `REFRESH_COOKIE_SAMESITE` | `lax` | `lax` / `strict` / `none`. |
 | `AUTH_REQUIRE_EMAIL_VERIFICATION` | `false` | Require a confirmed email address before signing in. |
-| `EMAIL_PROVIDER` | `auto` | `auto` / `resend` / `brevo` / `smtp` / `ethereal` / `console`. `auto` prefers Resend, then Brevo, then SMTP, then Ethereal in development. |
+| `EMAIL_PROVIDER` | `auto` | `auto` / `resend` / `brevo` / `gmail` / `smtp` / `ethereal` / `console`. `auto` prefers Resend, then Brevo, then the Gmail API, then SMTP, then Ethereal in development. |
 | `RESEND_API_KEY` | — | Resend API key. Requires a verified sending domain. |
-| `BREVO_API_KEY` | — | Brevo API key. Recommended on hosts that block outbound SMTP (Render free tier, Railway free/trial). Sends over HTTPS; verify the sender email, no domain required. |
+| `BREVO_API_KEY` | — | Brevo API key. Sends over HTTPS; verify the sender email, no domain required. |
+| `GMAIL_REFRESH_TOKEN` | — | Gmail API refresh token scoped to `gmail.send`. Reuses `YOUTUBE_CLIENT_ID`/`YOUTUBE_CLIENT_SECRET`. Best free option on hosts that block SMTP; sends as the real Gmail account. |
 | `MAIL_FROM` | `Talma <onboarding@resend.dev>` | Sender shown in inboxes. Use a verified domain in production. |
 | `MAIL_REPLY_TO` | — | Optional reply-to address for support replies. |
 | `SMTP_HOST` | — | SMTP server hostname when using `EMAIL_PROVIDER=smtp`. |
@@ -247,8 +248,12 @@ dashboard is not empty on a fresh install. Re-running the seed never overwrites 
 
 ### Email delivery
 
-Talma sends branded transactional email for creator verification, creator welcome
-messages and password resets. Resend is the recommended provider:
+Talma sends plain transactional email for creator verification, creator welcome
+messages and password resets. Resend, Brevo, the Gmail API and SMTP are all
+supported. On hosts that block outbound SMTP — **including Render's free
+tier** — use the **Gmail API** (free, best deliverability) or **Brevo**.
+
+Resend setup (requires a verified domain):
 
 1. Create a free account at [resend.com](https://resend.com) and add an API key.
 2. Verify your sending domain, then set `MAIL_FROM` to an address on that domain.
@@ -298,8 +303,44 @@ set a provider before deploying so real users can receive mail.
 
 > **Render free tier:** Render blocks outbound traffic to SMTP ports `25`, `465`
 > and `587`, so Gmail/SMTP email cannot work on a free service — it fails almost
-> immediately. Use `EMAIL_PROVIDER=brevo` with a `BREVO_API_KEY` (HTTPS, no
-> domain needed), or upgrade the Render service to a paid instance type.
+> immediately. Use the Gmail API or Brevo (both HTTPS), or upgrade the Render
+> service to a paid instance type.
+
+**Gmail API setup (free, no domain, best deliverability):**
+
+This sends as your real Gmail account over HTTPS and reuses the Google OAuth
+client already configured for YouTube.
+
+1. In [Google Cloud Console](https://console.cloud.google.com), open the same
+   project as the YouTube integration and enable the **Gmail API** under
+   **APIs & Services → Library**.
+2. Open **APIs & Services → OAuth consent screen → Data access** and add the
+   scope `https://www.googleapis.com/auth/gmail.send`. If the app is in
+   *Testing*, add the sending Gmail address as a test user.
+3. From the project root, mint a refresh token:
+
+```bash
+npm run gmail:auth --workspace server
+```
+
+Open the printed URL while signed in as the sending Gmail account, approve the
+scope, and copy the printed `GMAIL_REFRESH_TOKEN`.
+
+4. Set these on the host (for example Render → Environment):
+
+```env
+EMAIL_PROVIDER=gmail
+GMAIL_REFRESH_TOKEN=1//...
+YOUTUBE_CLIENT_ID=...        # same OAuth client as YouTube
+YOUTUBE_CLIENT_SECRET=...
+MAIL_FROM=Talma <your-address@gmail.com>
+MAIL_REPLY_TO=your-address@gmail.com
+```
+
+> `MAIL_FROM` must be the exact Gmail address you authorized. Google rejects a
+> different sender. If the OAuth app is in *Testing*, refresh tokens expire
+> after 7 days — set the publishing status to **In production** for a stable
+> token (your own account can keep using it even while the app is unverified).
 
 **Brevo setup (free, no domain):**
 
@@ -307,17 +348,21 @@ set a provider before deploying so real users can receive mail.
 2. Add and verify your sender email under **Senders, Domains & IPs → Senders**.
    Confirm the verification message in that inbox.
 3. Create an API key under **SMTP & API → API Keys**.
-4. Set these on your host (for example Render → Environment):
+4. Set these on your host:
 
 ```env
 EMAIL_PROVIDER=brevo
 BREVO_API_KEY=xkeysib-...
-MAIL_FROM="Talma <your-verified-sender@example.com>"
+MAIL_FROM=Talma <your-verified-sender@example.com>
 MAIL_REPLY_TO=your-verified-sender@example.com
 ```
 
-After deploying, open `https://<your-api>/api/health` and confirm
-`"email": { "provider": "brevo", "configured": true }`.
+After deploying, open `https://<your-api>/api/health` and confirm the provider
+you configured:
+
+```json
+"email": { "provider": "gmail", "configured": true }
+```
 
 ---
 
@@ -701,8 +746,9 @@ npm run build
    variable from `server/.env.example`, use a `MONGODB_URI` pointing at Atlas or a managed
    MongoDB, and set `REFRESH_COOKIE_SECURE=true`, `NODE_ENV=production` and
    `CORS_ORIGINS=https://your-frontend-domain`. **On Render's free tier, use
-   `EMAIL_PROVIDER=brevo`** — Render blocks outbound SMTP ports, so Gmail/SMTP email cannot work
-   there. Check `https://<your-api>/api/health` to confirm the email provider.
+   `EMAIL_PROVIDER=gmail`** (free, best deliverability) or `EMAIL_PROVIDER=brevo`
+   — Render blocks outbound SMTP ports, so Gmail/SMTP email cannot work there.
+   Check `https://<your-api>/api/health` to confirm the email provider.
 2. **Web client** — build with `npm run build --workspace client` and serve `client/dist/`.
 3. **Routing** — the client uses history routing, so the static host must rewrite unknown paths to
    `index.html`.
@@ -723,7 +769,7 @@ npm run build
 | **Cloudflare Stream** | Optional | Private paid video hosting. Set `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_STREAM_API_TOKEN`, `CLOUDFLARE_STREAM_CUSTOMER_CODE` and the allowed origins. The browser uploads directly with tus; playback uses short-lived signed tokens locked to Talma's domains. |
 | **YouTube Data API v3** | Optional | Legacy fallback for existing catalogue entries and deployments without Cloudflare. Set the OAuth client id/secret, `YOUTUBE_REFRESH_TOKEN` and `YOUTUBE_CHANNEL_ID`. Unlisted YouTube links are permanent, so new paid lessons should use Stream. |
 | **Wikimedia Commons** | Optional | The landing page hotlinks campus photographs from Wikimedia Commons. |
-| **Email delivery** | Optional | Brevo is recommended when the host blocks SMTP (Render free tier, Railway free/trial); Resend and SMTP are also supported. Development falls back to an Ethereal preview inbox when no credentials are set. Configure `BREVO_API_KEY`, `RESEND_API_KEY` or SMTP before real users need verification or reset emails. |
+| **Email delivery** | Optional | The Gmail API is recommended when the host blocks SMTP (Render free tier, Railway free/trial); Brevo and Resend are also supported, plus SMTP for local development. Development falls back to an Ethereal preview inbox when no credentials are set. Configure `GMAIL_REFRESH_TOKEN`, `BREVO_API_KEY`, `RESEND_API_KEY` or SMTP before real users need verification or reset emails. |
 | **ArcGIS imagery** | Optional | Satellite tiles for the campus map. |
 
 ---
